@@ -137,7 +137,17 @@ const _shootPools = {
   m16:    _makePool('audio/freesound_community-assaultrifle2-47258.mp3', 8, 0.6),
   rocket: _makePool('audio/futuristic-zoom-whoosh-2-183978.mp3', 3, 0.7),
 };
+// Throttle shoot SFX on mobile — HTMLAudioElement.play() is expensive on phones,
+// and at M16/M60 fire rates (12-20Hz) the audio system can't keep up. Cap to ~10Hz
+// on mobile; the rapid-fire cadence still reads correctly with overlapping samples.
+let _lastShootSfxTime = 0;
 function playShootSfx(weapon) {
+  if (lowQuality) {
+    const now = performance.now();
+    // ~95ms = ~10 plays/sec. Pistol is slow enough that it never trips this gate.
+    if (now - _lastShootSfxTime < 95 && weapon !== 'rocket') return;
+    _lastShootSfxTime = now;
+  }
   const p = _shootPools[weapon] || _shootPools.pistol;
   const a = p.pool[p.idx];
   p.idx = (p.idx + 1) % p.pool.length;
