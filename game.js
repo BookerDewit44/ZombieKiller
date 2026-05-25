@@ -1115,10 +1115,10 @@ document.addEventListener('keyup', e => {
 let mouseDown = false;
 // Block synthetic mouse events that touch devices fire after a tap — otherwise
 // tapping anywhere on the canvas triggers shoot() in addition to the touch button.
+// The preventDefault on touchstart suppresses the synthetic mousedown that would
+// otherwise follow, so the mousedown handler below only fires for real mouse input.
 canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 canvas.addEventListener('mousedown', e => {
-  // On touch devices the on-screen shoot button is the only way to fire.
-  if (lowQuality) return;
   if (e.button === 0) {
     mouseDown = true;
     if (gameState === 'playing') shoot();
