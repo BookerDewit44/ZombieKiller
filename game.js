@@ -137,17 +137,55 @@ const _shootPools = {
   m16:    _makePool('audio/freesound_community-assaultrifle2-47258.mp3', 8, 0.6),
   rocket: _makePool('audio/futuristic-zoom-whoosh-2-183978.mp3', 3, 0.7),
 };
-// Throttle shoot SFX on mobile — HTMLAudioElement.play() is expensive on phones,
-// and at M16/M60 fire rates (12-20Hz) the audio system can't keep up. Cap to ~10Hz
-// on mobile; the rapid-fire cadence still reads correctly with overlapping samples.
+// Web Audio API for gun SFX — HTMLAudioElement.play() is one of the slowest things
+// on mobile and was responsible for the heavy lag during rapid fire. Web Audio
+// decodes each sample once into an AudioBuffer, then plays via throwaway
+// AudioBufferSourceNodes — sample-accurate, ~zero per-play overhead.
+let audioCtx = null;
+const _gunBuffers = {}; // { pistol: { buffer, volume }, ... }
+const _gunSrcs = [
+  ['pistol', 'audio/pistol-shot-233473.mp3', 0.6],
+  ['m60',    'audio/mg42-sfx-80169.mp3',    0.55],
+  ['m16',    'audio/freesound_community-assaultrifle2-47258.mp3', 0.6],
+  ['rocket', 'audio/futuristic-zoom-whoosh-2-183978.mp3', 0.7],
+];
+function initAudioCtx() {
+  if (audioCtx) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return;
+  }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  audioCtx = new AC();
+  for (const [key, src, vol] of _gunSrcs) {
+    fetch(src)
+      .then(r => r.arrayBuffer())
+      .then(buf => audioCtx.decodeAudioData(buf))
+      .then(decoded => { _gunBuffers[key] = { buffer: decoded, volume: vol }; })
+      .catch(() => { /* fall back to HTMLAudio pool */ });
+  }
+}
+
+// Light throttle to avoid stacking too many overlapping samples per second.
 let _lastShootSfxTime = 0;
 function playShootSfx(weapon) {
   if (lowQuality) {
     const now = performance.now();
-    // ~95ms = ~10 plays/sec. Pistol is slow enough that it never trips this gate.
-    if (now - _lastShootSfxTime < 95 && weapon !== 'rocket') return;
+    if (now - _lastShootSfxTime < 70 && weapon !== 'rocket') return;
     _lastShootSfxTime = now;
   }
+  // Prefer Web Audio if the buffer for this weapon has decoded.
+  const wb = _gunBuffers[weapon];
+  if (audioCtx && wb) {
+    const src = audioCtx.createBufferSource();
+    src.buffer = wb.buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.value = wb.volume;
+    src.connect(gain).connect(audioCtx.destination);
+    try { src.start(0); } catch (_) {}
+    return;
+  }
+  // Fallback: HTMLAudio pool (before buffers decode, or if Web Audio missing).
   const p = _shootPools[weapon] || _shootPools.pistol;
   const a = p.pool[p.idx];
   p.idx = (p.idx + 1) % p.pool.length;
@@ -1171,6 +1209,7 @@ bindTouchHold('touch-shoot',
   () => { mouseDown = false; });
 
 document.getElementById('start-btn').addEventListener('click', () => {
+  initAudioCtx(); // browsers require a user gesture to create/resume AudioContext
   if (gameState === 'menu') {
     startGame(); // music already running from intro/playlist — don't reset it
   } else if (gameState === 'dead' || gameState === 'win') {
