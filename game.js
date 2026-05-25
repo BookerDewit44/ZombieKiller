@@ -13,6 +13,7 @@ canvas.height = 500;
 // flags Windows laptops/desktops that have touchscreens (or Chrome's experimental
 // touch flags) and was blocking click-to-shoot for desktop users.
 const lowQuality = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+if (lowQuality) document.body.classList.add('is-mobile');
 if (lowQuality) {
   // Suppress all shadow/glow on the instance — every ctx.shadowBlur = X call
   // in the codebase becomes a no-op without touching 60+ call sites.

@@ -241,9 +241,10 @@ body {
   z-index: 8;
 }
 
-@media (hover: none) and (pointer: coarse) {
-  #touch-controls { display: block; }
-}
+/* Touch controls show only when JS detects an actual mobile UA and adds .is-mobile
+   to body. The (pointer: coarse) media query was matching touchscreen desktops
+   and dragging the touch UI onto regular desktop browsers. */
+body.is-mobile #touch-controls { display: block; }
 
 #touch-left-pad {
   position: absolute;
