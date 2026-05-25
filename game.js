@@ -456,7 +456,9 @@ function spawnZombies() {
   bossRoundActive = false;
   dogEventState = 'idle'; dogFogAlpha = 0; pendingDogEvent = false; dogSpawnQueue = []; healthDroppedThisLevel = false; healthDroppedThisLevel = false; dogSpawnQueue = [];
   const cfg = LEVELS[level - 1];
-  for (let i = 0; i < cfg.zombies; i++) {
+  // On mobile, scale the horde down so the CPU/GPU can keep up at 60fps.
+  const zombieCount = lowQuality ? Math.max(4, Math.floor(cfg.zombies * 0.55)) : cfg.zombies;
+  for (let i = 0; i < zombieCount; i++) {
     spawnQueue.push({ x: randomSpawnX(), speed: cfg.speed + Math.random() * 0.5 });
   }
   // Release the first one immediately so the screen isn't empty
@@ -605,7 +607,8 @@ function enterHiddenLevel() {
   particles = []; bloodSplatters = []; slimeProjectiles = [];
   ammoPickups = []; weaponPickups = [];
   const cfg = HIDDEN_LEVEL_CONFIG;
-  for (let i = 0; i < cfg.zombies; i++) {
+  const hiddenCount = lowQuality ? Math.max(4, Math.floor(cfg.zombies * 0.55)) : cfg.zombies;
+  for (let i = 0; i < hiddenCount; i++) {
     spawnQueue.push({ x: randomSpawnX(), speed: cfg.speed + Math.random() * 0.5, hpMult: cfg.zombieHpMult });
   }
   if (spawnQueue.length > 0) {
@@ -920,7 +923,10 @@ function respawnOrGameOver() {
 
 // ── Particle helpers ─────────────────────────────────────────
 function createSparks(x, y, color, count) {
-  return Array.from({ length: count }, () => ({
+  // Halve particle count on mobile so the per-frame update loop and draw don't blow up
+  // during heavy combat (muzzle flash at 20 rounds/sec + kills + explosions).
+  const n = lowQuality ? Math.max(1, Math.floor(count * 0.5)) : count;
+  return Array.from({ length: n }, () => ({
     x, y,
     vx: (Math.random() - 0.5) * 8,
     vy: (Math.random() - 0.5) * 8 - 2,
@@ -1104,7 +1110,12 @@ document.addEventListener('keyup', e => {
   keys[e.code] = false;
 });
 let mouseDown = false;
+// Block synthetic mouse events that touch devices fire after a tap — otherwise
+// tapping anywhere on the canvas triggers shoot() in addition to the touch button.
+canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 canvas.addEventListener('mousedown', e => {
+  // On touch devices the on-screen shoot button is the only way to fire.
+  if (lowQuality) return;
   if (e.button === 0) {
     mouseDown = true;
     if (gameState === 'playing') shoot();
@@ -1466,7 +1477,9 @@ function update() {
         // Build staggered spawn queue — 10-12 dogs, ~1.5-3 s gaps between each
         let _t = 0;
         dogSpawnQueue = [];
-        const _dogCount = 10 + Math.floor(Math.random() * 3); // 10-12
+        const _dogCount = lowQuality
+          ? 5 + Math.floor(Math.random() * 2)       // mobile: 5-6
+          : 10 + Math.floor(Math.random() * 3);     // desktop: 10-12
         for (let _d = 0; _d < _dogCount; _d++) {
           dogSpawnQueue.push({ timer: _t });
           _t += 90 + Math.floor(Math.random() * 90); // 1.5-3 s
@@ -1811,9 +1824,10 @@ function update() {
         if (z.state !== 'attack') z.state = 'walk';
       } else {
         // Separation: don't bunch up. If another zombie is within personal space,
-        // push horizontally away — strong enough that the rear zombie briefly backs up
-        // when stacked, then resumes its pursuit when there's room.
+        // push horizontally away. Skip on mobile — the O(N²) loop tanks framerate
+        // once the horde gets dense.
         let separation = 0;
+        if (!lowQuality) {
         const PERSONAL_SPACE = 46;
         const myCx = z.x + z.w / 2;
         for (const other of zombies) {
@@ -1826,6 +1840,7 @@ function update() {
             // Stronger push when closer; sign keeps you moving away from the other zombie
             separation += Math.sign(ddx || (Math.random() - 0.5)) * (1 - dist / PERSONAL_SPACE) * 2.6;
           }
+        }
         }
         z.vx = dir * z.speed + separation;
 
@@ -3629,6 +3644,28 @@ function drawZombie(z) {
 }
 
 function drawBullets() {
+  // Mobile fast path: flat-color bullets, no gradients/save-restore.
+  if (lowQuality) {
+    for (const b of bullets) {
+      const sx = b.x - cameraX;
+      const dir = b.vx > 0 ? 1 : -1;
+      if (b.isRocket) {
+        ctx.fillStyle = '#cc3300';
+        ctx.fillRect(sx - dir * 16, b.y - 4, 20, 8);
+        ctx.fillStyle = '#ff9900';
+        ctx.fillRect(sx + dir * 4, b.y - 3, 8, 6);
+        ctx.fillStyle = '#ff6600';
+        ctx.fillRect(sx - dir * 26, b.y - 2, 10, 4);
+      } else {
+        const heavy = !!b.heavy;
+        ctx.fillStyle = heavy ? '#ffaa44' : '#ffe066';
+        ctx.fillRect(sx - (heavy ? 14 : 12), b.y - 2, heavy ? 16 : 14, heavy ? 4 : 3);
+        ctx.fillStyle = b.color || '#ffffff';
+        ctx.fillRect(sx - 3, b.y - 2, 6, heavy ? 4 : 3);
+      }
+    }
+    return;
+  }
   for (const b of bullets) {
     const sx = b.x - cameraX;
     const dir = b.vx > 0 ? 1 : -1;
@@ -3908,6 +3945,20 @@ function drawExplosions() {
 }
 
 function drawParticles() {
+  // Mobile fast path: avoid save/restore and shadow per particle. Tiny squares
+  // instead of arcs cuts beginPath/arc/fill overhead. globalAlpha is still set
+  // once per particle to fade them out as they die.
+  if (lowQuality) {
+    for (const p of particles) {
+      const sx = p.x - cameraX;
+      ctx.globalAlpha = Math.min(1, p.life / 40);
+      ctx.fillStyle = p.color;
+      const r = Math.max(1, p.size / 2);
+      ctx.fillRect(sx - r, p.y - r, r * 2, r * 2);
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
   for (const p of particles) {
     const sx = p.x - cameraX;
     ctx.save();
