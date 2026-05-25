@@ -295,10 +295,16 @@ html, body {
 }
 #gameCanvas { touch-action: none; }
 
-/* Prevent long-press "copy / save image" callout and text selection on mobile */
-#game-container,
-#gameCanvas {
+/* Prevent long-press "copy / save image" callout and text selection on mobile.
+   Applied globally because Android Chrome can trigger the callout from any element
+   that contains the touch target — limiting to canvas/container wasn't enough. */
+*, *::before, *::after {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
+/* Make sure images can't be saved/dragged either */
+img { -webkit-user-drag: none; user-drag: none; pointer-events: none; }

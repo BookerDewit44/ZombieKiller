@@ -17,6 +17,11 @@ if (lowQuality) {
 }
 
 // Block the long-press "copy image" / "save image" callout on mobile.
+// Apply at document level (capture phase) so it stops the gesture before any
+// child element can show a system popup.
+document.addEventListener('contextmenu', e => e.preventDefault(), { capture: true });
+document.addEventListener('selectstart', e => e.preventDefault(), { capture: true });
+document.addEventListener('dragstart',   e => e.preventDefault(), { capture: true });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 document.getElementById('game-container').addEventListener('contextmenu', e => e.preventDefault());
 
@@ -106,11 +111,30 @@ function startMusic() {
   (level === 5 ? musicLevel5 : musicMain).play().catch(() => {});
 }
 
+// Audio pools — pre-allocated round-robin Audio elements per weapon so we don't
+// cloneNode() on every shot. cloneNode allocates + decodes metadata and is very
+// laggy on mobile when firing at 12-20 rounds/sec (M60/M16).
+function _makePool(src, size, volume) {
+  const pool = [];
+  for (let i = 0; i < size; i++) {
+    const a = new Audio(src);
+    a.volume = volume;
+    pool.push(a);
+  }
+  return { pool, idx: 0 };
+}
+const _shootPools = {
+  pistol: _makePool('audio/pistol-shot-233473.mp3', 6, 0.6),
+  m60:    _makePool('audio/mg42-sfx-80169.mp3', 6, 0.55),
+  m16:    _makePool('audio/freesound_community-assaultrifle2-47258.mp3', 8, 0.6),
+  rocket: _makePool('audio/futuristic-zoom-whoosh-2-183978.mp3', 3, 0.7),
+};
 function playShootSfx(weapon) {
-  const src = weapon === 'rocket' ? sfxRocket : weapon === 'm60' ? sfxM60 : weapon === 'm16' ? sfxM16 : sfxShoot;
-  const s = src.cloneNode();
-  s.volume = src.volume;
-  s.play().catch(() => {});
+  const p = _shootPools[weapon] || _shootPools.pistol;
+  const a = p.pool[p.idx];
+  p.idx = (p.idx + 1) % p.pool.length;
+  try { a.currentTime = 0; } catch (_) {}
+  a.play().catch(() => {});
 }
 
 function playZombieGroan(volume) {
