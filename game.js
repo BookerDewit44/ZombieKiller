@@ -3,17 +3,22 @@
 // ============================================================
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+// `desynchronized: true` lets the browser composite the canvas directly to the
+// screen without an extra back-buffer copy — meaningful win on mobile GPUs.
+const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 canvas.width = 900;
 canvas.height = 500;
 
-// Detect mobile / low-end device and suppress all shadow/glow effects.
-// Overriding the property on the instance means every ctx.shadowBlur = X
-// call in the codebase becomes a no-op without touching 60+ call sites.
+// Detect mobile / low-end device.
 const lowQuality = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1);
 if (lowQuality) {
+  // Suppress all shadow/glow on the instance — every ctx.shadowBlur = X call
+  // in the codebase becomes a no-op without touching 60+ call sites.
   Object.defineProperty(ctx, 'shadowBlur',  { set() {}, get() { return 0; }, configurable: true });
   Object.defineProperty(ctx, 'shadowColor', { set() {}, get() { return 'transparent'; }, configurable: true });
+  // imageSmoothing is set per-draw in some places, but turning it off globally
+  // skips a subpixel-interpolation step on every drawImage call.
+  ctx.imageSmoothingEnabled = false;
 }
 
 // Block the long-press "copy image" / "save image" callout on mobile.
@@ -2080,14 +2085,21 @@ function drawBackground() {
   // Organic atmosphere layered over the static sprite background
   drawAtmosphere(W, GY, frameCount);
 
-  // Cinematic vignette
-  const vg = ctx.createRadialGradient(W/2,canvas.height*0.52,W*0.18,W/2,canvas.height*0.52,W*0.8);
-  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(0.55,'rgba(0,0,0,0.08)'); vg.addColorStop(1,'rgba(0,0,0,0.72)');
-  ctx.fillStyle=vg; ctx.fillRect(0,0,W,canvas.height);
+  // Cinematic vignette — skip on mobile (full-canvas radial gradient + alpha-blend fill
+  // every frame is one of the heaviest single operations on phone GPUs).
+  if (!lowQuality) {
+    const vg = ctx.createRadialGradient(W/2,canvas.height*0.52,W*0.18,W/2,canvas.height*0.52,W*0.8);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(0.55,'rgba(0,0,0,0.08)'); vg.addColorStop(1,'rgba(0,0,0,0.72)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,W,canvas.height);
+  }
 }
 
 // ── Per-level atmospheric overlays ────────────────────────────
 function drawAtmosphere(W, GY, t) {
+  // Mobile: atmosphere overlays iterate 30-65 particles per frame with createRadialGradient
+  // calls each. Skipping entirely on low-power devices gives a large fps boost — the static
+  // sprite background already conveys the level's mood.
+  if (lowQuality) return;
   switch (level) {
     case 1: drawAtmCity(t, W, GY); break;
     case 2: drawAtmDungeon(t, W, GY); break;
@@ -2323,11 +2335,17 @@ function drawAtmHell(t, W, GY) {
 
 function drawShadow(worldX, baseY, w) {
   const sx = worldX - cameraX;
-  const sg = ctx.createRadialGradient(sx, baseY, 0, sx, baseY, w);
-  sg.addColorStop(0, 'rgba(0,0,0,0.4)');
-  sg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.save();
-  ctx.fillStyle = sg;
+  if (lowQuality) {
+    // Skip the per-call radial gradient on mobile — called once per zombie per frame.
+    // A flat semi-transparent ellipse reads the same at a glance.
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  } else {
+    const sg = ctx.createRadialGradient(sx, baseY, 0, sx, baseY, w);
+    sg.addColorStop(0, 'rgba(0,0,0,0.4)');
+    sg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sg;
+  }
   ctx.beginPath();
   ctx.ellipse(sx, baseY, w, w * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -3110,7 +3128,35 @@ function bgHell(t, W, GY) {
 
 // ── Platforms (level-styled, realistic) ──────────────────────
 // ── Platform tile cache ──────────────────────────────────────
+// Mobile-friendly flat colors per level for the ground floor and elevated platforms.
+const _MOBILE_GROUND_COLOR    = ['#140700','#0b0a18','#040a01','#0d0b05','#160000'];
+const _MOBILE_PLATFORM_COLOR  = ['#2a1505','#1a1428','#0c1a08','#1c1810','#240505'];
+
 function drawPlatforms() {
+  // Mobile fast path: solid fills only, no gradients, no decorative strokes.
+  // Restores the platform silhouettes (which are gameplay-critical) without the
+  // dozens of beginPath/stroke calls per platform per frame that tank framerate.
+  if (lowQuality) {
+    const groundCol   = inHiddenLevel ? '#06081a' : (_MOBILE_GROUND_COLOR[level - 1]   || '#101010');
+    const platformCol = inHiddenLevel ? '#0c1a32' : (_MOBILE_PLATFORM_COLOR[level - 1] || '#202020');
+    for (const p of basePlatforms) {
+      const sx = p.x - cameraX;
+      if (sx + p.w < 0 || sx > canvas.width) continue;
+      if (p.y === GROUND_Y) {
+        if (inHiddenLevel) continue;
+        ctx.fillStyle = groundCol;
+        ctx.fillRect(sx, p.y, p.w, canvas.height - p.y);
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillRect(sx, p.y, p.w, 2);
+      } else {
+        ctx.fillStyle = platformCol;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(sx, p.y, p.w, 1);
+      }
+    }
+    return;
+  }
   for (const p of basePlatforms) {
     const sx = p.x - cameraX;
     if (sx + p.w < 0 || sx > canvas.width) continue;
