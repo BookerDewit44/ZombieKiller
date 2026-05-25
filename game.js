@@ -9,8 +9,10 @@ const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 canvas.width = 900;
 canvas.height = 500;
 
-// Detect mobile / low-end device.
-const lowQuality = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1);
+// Detect mobile / low-end device. Use userAgent only — `maxTouchPoints > 1` falsely
+// flags Windows laptops/desktops that have touchscreens (or Chrome's experimental
+// touch flags) and was blocking click-to-shoot for desktop users.
+const lowQuality = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 if (lowQuality) {
   // Suppress all shadow/glow on the instance — every ctx.shadowBlur = X call
   // in the codebase becomes a no-op without touching 60+ call sites.
