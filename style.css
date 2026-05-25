@@ -294,3 +294,11 @@ html, body {
   touch-action: none;
 }
 #gameCanvas { touch-action: none; }
+
+/* Prevent long-press "copy / save image" callout and text selection on mobile */
+#game-container,
+#gameCanvas {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

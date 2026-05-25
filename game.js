@@ -7,6 +7,19 @@ const ctx = canvas.getContext('2d');
 canvas.width = 900;
 canvas.height = 500;
 
+// Detect mobile / low-end device and suppress all shadow/glow effects.
+// Overriding the property on the instance means every ctx.shadowBlur = X
+// call in the codebase becomes a no-op without touching 60+ call sites.
+const lowQuality = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1);
+if (lowQuality) {
+  Object.defineProperty(ctx, 'shadowBlur',  { set() {}, get() { return 0; }, configurable: true });
+  Object.defineProperty(ctx, 'shadowColor', { set() {}, get() { return 'transparent'; }, configurable: true });
+}
+
+// Block the long-press "copy image" / "save image" callout on mobile.
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+document.getElementById('game-container').addEventListener('contextmenu', e => e.preventDefault());
+
 // ── Audio ─────────────────────────────────────────────────────
 const introClip = new Audio('audio/come-here-scum-323781(Radio).mp3');
 introClip.volume = 0.75;
