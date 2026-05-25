@@ -1,0 +1,74 @@
+{
+  "dimensions": [
+    132,
+    174
+  ],
+  "dpi": [
+    96,
+    96
+  ],
+  "mode": "RGBA / 32-bit PNG",
+  "folders": {
+    "idol_file": [
+      "idol_001.png",
+      "idol_002.png",
+      "idol_003.png",
+      "idol_004.png",
+      "idol_005.png",
+      "idol_006.png"
+    ],
+    "walk_file": [
+      "walk_001.png",
+      "walk_002.png",
+      "walk_003.png",
+      "walk_004.png",
+      "walk_005.png",
+      "walk_006.png",
+      "walk_007.png",
+      "walk_008.png",
+      "walk_009.png",
+      "walk_010.png",
+      "walk_011.png"
+    ],
+    "mele_file": [
+      "mele_001.png",
+      "mele_002.png",
+      "mele_003.png",
+      "mele_004.png",
+      "mele_005.png"
+    ],
+    "jump_file": [
+      "jump_001.png",
+      "jump_002.png",
+      "jump_003.png",
+      "jump_004.png",
+      "jump_005.png"
+    ],
+    "pistol_file": [
+      "pistol_001.png",
+      "pistol_002.png",
+      "pistol_003.png",
+      "pistol_004.png"
+    ],
+    "m16_file": [
+      "m16_001.png",
+      "m16_002.png",
+      "m16_003.png",
+      "m16_004.png",
+      "m16_005.png",
+      "m16_006.png",
+      "m16_007.png",
+      "m16_008.png"
+    ],
+    "die_file": [
+      "die_001.png",
+      "die_002.png",
+      "die_003.png",
+      "die_004.png",
+      "die_005.png",
+      "die_006.png",
+      "die_007.png",
+      "die_008.png"
+    ]
+  }
+}

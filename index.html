@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zombie Killer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui-overlay">
+      <div id="hud">
+        <div id="health-bar-container">
+          <span>HP</span>
+          <div id="health-bar"><div id="health-fill"></div></div>
+        </div>
+        <div id="ammo-display">AMMO: <span id="ammo-count">30</span></div>
+        <div id="lives-display">LIVES: <span id="lives">3</span></div>
+        <div id="score-display">SCORE: <span id="score">0</span></div>
+        <div id="level-display">LEVEL: <span id="level">1</span></div>
+        <span id="god-indicator" style="display:none; color:#ffcc00; font-weight:bold; text-shadow:0 0 6px #ffcc00;">GOD</span>
+        <button id="pause-btn" title="Pause (P)">⏸</button>
+      </div>
+    </div>
+    <div id="screen-overlay" class="hidden">
+      <div id="overlay-content">
+        <h1 id="overlay-title">ZOMBIE KILLER</h1>
+        <p id="overlay-subtitle">Survive the zombie horde!</p>
+        <div id="overlay-controls">
+          <p>← → Move &nbsp;|&nbsp; SPACE Jump &nbsp;|&nbsp; Left Click Shoot</p>
+        </div>
+
+        <div id="char-select">
+          <p id="char-label">CHOOSE YOUR FIGHTER</p>
+          <div id="char-options">
+            <div class="char-card selected" id="char-rambo">
+              <img id="preview-male" src="images/commando_organized_132x174_animation_files/idol_file/idol_003.png" alt="Ziggy Kramer" />
+              <span>ZIGGY KRAMER</span>
+            </div>
+            <div class="char-card" id="char-viper">
+              <img id="preview-female" src="images/full_character_snips_no_background/01_idle_07.png" alt="Viper" />
+              <span>VIPER</span>
+            </div>
+          </div>
+        </div>
+
+        <button id="start-btn">START GAME</button>
+      </div>
+    </div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sprite Generator — Pixel Art Style</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
+h1 { color: #ff4400; font-size: 19px; margin-bottom: 4px; letter-spacing: 2px; }
+p.sub { color: #666; font-size: 11px; margin-bottom: 14px; }
+
+.controls {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+  background: rgba(255,68,0,0.07); border: 1px solid rgba(255,68,0,0.2);
+  border-radius: 6px; padding: 12px 14px; margin-bottom: 12px;
+}
+.ctrl { display: flex; flex-direction: column; gap: 3px; }
+.ctrl label { font-size: 10px; color: #888; letter-spacing: 1px; text-transform: uppercase; }
+.ctrl input[type=color] { width: 44px; height: 26px; border: 1px solid #333; cursor: pointer;
+  border-radius: 3px; padding: 1px; background: none; }
+.ctrl select { background: #1e1a10; color: #eee; border: 1px solid #444; padding: 4px 6px;
+  font-family: 'Courier New', monospace; font-size: 11px; border-radius: 3px; cursor: pointer; }
+
+.btn { background: #ff4400; color: #fff; border: none; padding: 8px 18px; font-size: 12px;
+  font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer;
+  border-radius: 4px; letter-spacing: 1px; align-self: flex-end; }
+.btn:hover { background: #ff6600; }
+.btn.sec { background: #2a2a3a; } .btn.sec:hover { background: #3a3a4a; }
+
+.zoom-row { display: flex; gap: 6px; margin-bottom: 10px; align-items: center; }
+.zoom-row span { font-size: 10px; color: #666; margin-right: 2px; }
+.zb { background: #1e1e1e; color: #666; border: 1px solid #333; padding: 3px 10px;
+  font-size: 11px; cursor: pointer; border-radius: 3px; font-family: 'Courier New', monospace; }
+.zb.on { background: #ff4400; color: #fff; border-color: #ff4400; }
+
+h2 { color: #ffcc00; font-size: 11px; letter-spacing: 2px; margin: 12px 0 4px; }
+.row { display: flex; flex-wrap: wrap; gap: 2px; align-items: flex-end; }
+canvas { image-rendering: pixelated; image-rendering: crisp-edges; background: rgba(255,255,255,0.04); }
+#status { color: #88ff44; font-size: 11px; margin: 6px 0; min-height: 15px; }
+</style>
+</head>
+<body>
+
+<h1>⚔ MALE SPRITE GENERATOR</h1>
+<p class="sub">128 × 208 px · transparent PNG · same format as Viper</p>
+
+<div class="controls">
+  <div class="ctrl"><label>Skin</label>
+    <input type="color" id="c-skin"  value="#c8854a"></div>
+  <div class="ctrl"><label>Hair</label>
+    <input type="color" id="c-hair"  value="#3a1c08"></div>
+  <div class="ctrl"><label>Headband</label>
+    <input type="color" id="c-band"  value="#cc1800"></div>
+  <div class="ctrl"><label>Top</label>
+    <input type="color" id="c-shirt" value="#4a5a28"></div>
+  <div class="ctrl"><label>Pants</label>
+    <input type="color" id="c-pants" value="#3a4820"></div>
+  <div class="ctrl"><label>Boots</label>
+    <input type="color" id="c-boot"  value="#1e1208"></div>
+  <div class="ctrl"><label>Gear</label>
+    <select id="c-acc">
+      <option value="headband">Headband</option>
+      <option value="beret">Beret</option>
+      <option value="bandana">Bandana</option>
+      <option value="cap">Tactical Cap</option>
+    </select>
+  </div>
+  <div class="ctrl"><label>Shirt Style</label>
+    <select id="c-top">
+      <option value="vest">Tactical Vest</option>
+      <option value="tank">Tank Top</option>
+      <option value="bare">Bare Chest</option>
+    </select>
+  </div>
+  <button class="btn" onclick="regenerate()">🔄 REGENERATE</button>
+  <button class="btn sec" onclick="randomize()">🎲 RANDOMIZE</button>
+</div>
+
+<div class="zoom-row">
+  <span>ZOOM</span>
+  <button class="zb on"  onclick="setZoom(1)">1×</button>
+  <button class="zb"     onclick="setZoom(2)">2×</button>
+  <button class="zb"     onclick="setZoom(3)">3×</button>
+</div>
+<button class="btn" style="margin-bottom:10px" onclick="downloadAll()">⬇ DOWNLOAD ALL (.zip)</button>
+<div id="status"></div>
+<div id="preview"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+  crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+const W = 128, H = 208;
+let ZOOM = 1;
+
+// ── Color helpers ──────────────────────────────────────────────
+function hex2rgb(h){ return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)]; }
+function rgb2hex(r,g,b){ return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join(''); }
+function mix(h1,h2,t){ const a=hex2rgb(h1),b=hex2rgb(h2); return rgb2hex(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t); }
+function lighten(h,a){ const [r,g,b]=hex2rgb(h); return rgb2hex(r+a,g+a,b+a); }
+function darken(h,a) { return lighten(h,-a); }
+
+function getC() {
+  const sk=id('c-skin').value, hr=id('c-hair').value;
+  const bn=id('c-band').value, sh=id('c-shirt').value;
+  const pn=id('c-pants').value, bt=id('c-boot').value;
+  return {
+    sk0: lighten(sk,40),  // skin highlight
+    sk1: lighten(sk,18),  // skin mid-light
+    sk2: sk,              // skin base
+    sk3: darken(sk,28),   // skin shadow
+    sk4: darken(sk,52),   // skin deep shadow
+    hr0: lighten(hr,30),  // hair highlight
+    hr1: hr,              // hair base
+    hr2: darken(hr,18),   // hair shadow
+    bn0: lighten(bn,28),  bn1: bn, bn2: darken(bn,28),
+    sh0: lighten(sh,22),  sh1: sh, sh2: darken(sh,28), sh3: darken(sh,50),
+    pn0: lighten(pn,18),  pn1: pn, pn2: darken(pn,28), pn3: darken(pn,48),
+    bt0: lighten(bt,20),  bt1: bt, bt2: darken(bt,18),
+    gu0: '#585050', gu1:'#383030', gu2:'#201818',
+    wh: '#f0e8d8', eye:'#1c0c06',
+    acc: id('c-acc').value,
+    top: id('c-top').value,
+  };
+}
+function id(s){ return document.getElementById(s); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+
+// ── Draw helpers ──────────────────────────────────────────────
+// Muscle limb: organic curved shape between two joints, gradient-shaded
+function mLimb(ctx, x1,y1, x2,y2, r1,r2, c_hi,c_mid,c_dk, opts={}) {
+  const dx=x2-x1, dy=y2-y1;
+  const len=Math.sqrt(dx*dx+dy*dy)||1;
+  const nx=-dy/len, ny=dx/len;  // left-normal
+  const bulge = opts.bulge||0;  // outward bulge on the normal side
+
+  // Lit side = nx direction (left of travel)
+  const lx1=x1+nx*r1, ly1=y1+ny*r1;
+  const lx2=x2+nx*r2, ly2=y2+ny*r2;
+  const rx1=x1-nx*r1, ry1=y1-ny*r1;
+  const rx2=x2-nx*r2, ry2=y2-ny*r2;
+
+  // Mid bulge control points
+  const bx = (x1+x2)/2 + nx*bulge, by=(y1+y2)/2+ny*bulge;
+
+  // Gradient perpendicular across limb
+  const grad = ctx.createLinearGradient(x1+nx*r1, y1+ny*r1, x1-nx*r1, y1-ny*r1);
+  grad.addColorStop(0,   c_hi);
+  grad.addColorStop(0.28, c_mid);
+  grad.addColorStop(0.65, c_mid);
+  grad.addColorStop(1,   c_dk);
+  ctx.fillStyle = grad;
+
+  ctx.beginPath();
+  ctx.moveTo(lx1|0, ly1|0);
+  // lit edge (with optional bulge)
+  if (Math.abs(bulge)>1) {
+    ctx.quadraticCurveTo((bx+nx*Math.max(r1,r2)*0.9)|0, (by+ny*Math.max(r1,r2)*0.9)|0, lx2|0, ly2|0);
+  } else {
+    ctx.lineTo(lx2|0, ly2|0);
+  }
+  ctx.lineTo(rx2|0, ry2|0);
+  if (Math.abs(bulge)>1) {
+    ctx.quadraticCurveTo((bx-nx*Math.max(r1,r2)*0.85)|0, (by-ny*Math.max(r1,r2)*0.85)|0, rx1|0, ry1|0);
+  } else {
+    ctx.lineTo(rx1|0, ry1|0);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Highlight line along lit edge
+  if (opts.hiLine !== false) {
+    ctx.strokeStyle = c_hi;
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.moveTo((x1+nx*r1*0.55)|0, (y1+ny*r1*0.55)|0);
+    ctx.lineTo((x2+nx*r2*0.5)|0,  (y2+ny*r2*0.5)|0);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Joint helper: end-point of segment from (px,py) at angle from straight-down
+function jnt(px2,py2,angle,len){ return {x:px2+Math.sin(angle)*len, y:py2+Math.cos(angle)*len}; }
+
+function ov(ctx,cx,cy,rx,ry,col,alpha){
+  ctx.save(); if(alpha!==undefined) ctx.globalAlpha=alpha;
+  ctx.fillStyle=col; ctx.beginPath();
+  ctx.ellipse(cx|0,cy|0,rx|0,ry|0,0,0,Math.PI*2);
+  ctx.fill(); ctx.restore();
+}
+function box(ctx,x,y,w,h,col){ ctx.fillStyle=col; ctx.fillRect(x|0,y|0,w|0,h|0); }
+function arc(ctx,x,y,r,sa,ea,col){ ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x|0,y|0,r|0,sa,ea); ctx.fill(); }
+
+// ── MAIN CHARACTER DRAW ───────────────────────────────────────
+function drawChar(ctx, pose, C) {
+  ctx.clearRect(0,0,W,H);
+  const {
+    lTA=0, lCA=0.05, rTA=0, rCA=0.05,
+    lUA=0.14, lFA=0.2, rUA=-0.14, rFA=0.2,
+    bob=0, lean=0, shoot=false, dying=0,
+  } = pose;
+
+  const RX=64, FY=183-bob;
+  const HY=FY-70, HX=RX+lean*5|0;
+  const SHY=HY-44, SHX=HX;
+  const HEADY=SHY-15;
+
+  if(dying>0){
+    ctx.save();
+    ctx.translate(HX,HY+5);
+    ctx.rotate(dying*Math.PI*0.52);
+    ctx.translate(-HX,-(HY+5));
+  }
+
+  // ── BACK LEG ────────────────────────────────────────────────
+  const lKn = jnt(HX-5, HY, lTA, 34);
+  const lAn = jnt(lKn.x, lKn.y, lTA+lCA, 30);
+  // Thigh (back — darker)
+  mLimb(ctx, HX-5,HY, lKn.x,lKn.y, 7,6, C.pn1,C.pn2,C.pn3, {bulge:2});
+  // Calf (back)
+  mLimb(ctx, lKn.x,lKn.y, lAn.x,lAn.y, 5,4, C.pn1,C.pn2,C.pn3);
+  // Boot back
+  drawBoot(ctx, lAn.x, lAn.y, C, true);
+
+  // ── BACK ARM ────────────────────────────────────────────────
+  const lElb = jnt(SHX-16, SHY+6, lUA, 22);
+  const lHnd = jnt(lElb.x, lElb.y, lUA+lFA, 17);
+  mLimb(ctx, SHX-16,SHY+6, lElb.x,lElb.y, 6,5, C.sk1,C.sk2,C.sk4, {bulge:2.5});
+  mLimb(ctx, lElb.x,lElb.y, lHnd.x,lHnd.y, 5,4, C.sk1,C.sk3,C.sk4);
+  ov(ctx, lElb.x,lElb.y, 5,5, C.sk3);  // elbow
+
+  // ── TORSO ────────────────────────────────────────────────────
+  drawTorso(ctx, SHX, SHY, HX, HY, C);
+
+  // ── FRONT LEG ────────────────────────────────────────────────
+  const rKn = jnt(HX+5, HY, rTA, 34);
+  const rAn = jnt(rKn.x, rKn.y, rTA+rCA, 30);
+  mLimb(ctx, HX+5,HY, rKn.x,rKn.y, 8,7, C.pn0,C.pn1,C.pn3, {bulge:3.5});
+  mLimb(ctx, rKn.x,rKn.y, rAn.x,rAn.y, 7,5, C.pn0,C.pn2,C.pn3, {bulge:2});
+  drawBoot(ctx, rAn.x, rAn.y, C, false);
+
+  // ── FRONT ARM + GUN ──────────────────────────────────────────
+  let rElb, rHnd;
+  if(shoot){
+    rElb={x:(SHX+16+18)|0, y:(SHY+4)|0};
+    rHnd={x:(rElb.x+15)|0, y:rElb.y};
+  } else {
+    rElb=jnt(SHX+16,SHY+6,rUA,22);
+    rHnd=jnt(rElb.x,rElb.y,rUA+rFA,17);
+  }
+  // Glove / forearm wrap
+  mLimb(ctx, SHX+16,SHY+6, rElb.x,rElb.y, 7,6, C.sk0,C.sk2,C.sk4, {bulge:3});
+  ov(ctx, rElb.x,rElb.y, 6,6, C.sk3);  // elbow
+  mLimb(ctx, rElb.x,rElb.y, rHnd.x,rHnd.y, 6,5, C.sk1,C.sk2,C.sk4, {hiLine:false});
+  // Tactical glove on gun hand
+  ov(ctx, rHnd.x,rHnd.y, 6,5, C.bt1);
+  // Gun
+  drawGun(ctx, rHnd.x, rHnd.y, shoot, C);
+
+  // ── HEAD ─────────────────────────────────────────────────────
+  drawHead(ctx, HX+lean*2|0, HEADY, C);
+
+  if(dying>0) ctx.restore();
+}
+
+// ── BOOT ──────────────────────────────────────────────────────
+function drawBoot(ctx, ax, ay, C, back) {
+  const l = back ? 0.8 : 1;
+  // Shaft
+  mLimb(ctx, ax,ay, ax+(back?1:0),ay+9, 5,5, back?C.bt0:lighten(C.bt0,8), C.bt1, C.bt2);
+  // Sole / foot shape
+  ctx.fillStyle = C.bt1;
+  ctx.beginPath();
+  ctx.ellipse((ax+4)|0,(ay+11)|0, (13*l)|0,5,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = C.bt2;
+  ctx.beginPath();
+  ctx.ellipse((ax+4)|0,(ay+11)|0, (13*l)|0,2,0,Math.PI,Math.PI*2);
+  ctx.fill();
+  // Highlight top of boot
+  ctx.fillStyle = C.bt0;
+  ctx.beginPath();
+  ctx.ellipse((ax+3)|0,(ay+8)|0, (8*l)|0,3,0,Math.PI,0);
+  ctx.fill();
+  // Buckle strap
+  ctx.fillStyle = '#504030';
+  ctx.fillRect((ax-3)|0,(ay+3)|0,(8*l)|0,3);
+  ctx.fillStyle = '#706040';
+  ctx.fillRect((ax)|0,(ay+3)|0,(4*l)|0,3);
+}
+
+// ── TORSO ─────────────────────────────────────────────────────
+function drawTorso(ctx, shx,shy, hx,hy, C) {
+  const ts = C.top;
+
+  // Base skin torso shape (visible for bare/tank options)
+  if (ts==='bare' || ts==='tank') {
+    const tg = ctx.createLinearGradient(shx-22,shy, shx+22,shy);
+    tg.addColorStop(0,   C.sk4);
+    tg.addColorStop(0.25, C.sk2);
+    tg.addColorStop(0.48, C.sk0);
+    tg.addColorStop(0.72, C.sk2);
+    tg.addColorStop(1,   C.sk4);
+    ctx.fillStyle=tg;
+    ctx.beginPath();
+    ctx.moveTo((shx-22)|0,shy|0);
+    ctx.bezierCurveTo((shx-26)|0,(shy+14)|0,(shx-18)|0,(shy+32)|0,(hx-13)|0,hy|0);
+    ctx.lineTo((hx+13)|0,hy|0);
+    ctx.bezierCurveTo((shx+18)|0,(shy+32)|0,(shx+26)|0,(shy+14)|0,(shx+22)|0,shy|0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Pec muscles
+    drawPecs(ctx, shx, shy, C);
+
+    // Abs
+    drawAbs(ctx, shx, shy, hx, hy, C);
+
+    // Shadow sides
+    ctx.fillStyle = C.sk4;
+    ctx.globalAlpha=0.35;
+    ctx.beginPath();
+    ctx.moveTo((shx+6)|0,shy|0);
+    ctx.bezierCurveTo((shx+22)|0,(shy+8)|0,(shx+20)|0,(shy+26)|0,(hx+13)|0,hy|0);
+    ctx.lineTo((hx+8)|0,hy|0);
+    ctx.bezierCurveTo((shx+14)|0,(shy+26)|0,(shx+14)|0,(shy+12)|0,(shx+6)|0,(shy+2)|0);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+
+  if (ts==='vest') {
+    // Tactical vest / camo shirt
+    const vg = ctx.createLinearGradient(shx-22,shy, shx+22,shy);
+    vg.addColorStop(0,   C.sh3);
+    vg.addColorStop(0.3, C.sh1);
+    vg.addColorStop(0.5, C.sh0);
+    vg.addColorStop(0.8, C.sh1);
+    vg.addColorStop(1,   C.sh3);
+    ctx.fillStyle=vg;
+    ctx.beginPath();
+    ctx.moveTo((shx-22)|0,shy|0);
+    ctx.bezierCurveTo((shx-26)|0,(shy+14)|0,(shx-18)|0,(shy+32)|0,(hx-13)|0,hy|0);
+    ctx.lineTo((hx+13)|0,hy|0);
+    ctx.bezierCurveTo((shx+18)|0,(shy+32)|0,(shx+26)|0,(shy+14)|0,(shx+22)|0,shy|0);
+    ctx.closePath(); ctx.fill();
+
+    // Vest panels
+    ctx.fillStyle=C.sh2;
+    ctx.fillRect((shx-10)|0,(shy+4)|0,20,4);   // chest strap line
+    // Pocket outlines
+    ctx.strokeStyle=C.sh2; ctx.lineWidth=1;
+    ctx.strokeRect((shx-18)|0,(shy+8)|0,9,10);
+    ctx.strokeRect((shx+9)|0,(shy+8)|0,9,10);
+    // Center zipper
+    ctx.strokeStyle=C.sh3; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(shx|0,shy|0); ctx.lineTo(shx|0,(shy+38)|0); ctx.stroke();
+  }
+
+  if (ts==='tank') {
+    // Straps only
+    ctx.fillStyle=C.sh1;
+    box(ctx, shx-17,shy-2, 7,38, C.sh1);   // left strap shadow
+    box(ctx, shx-17,shy-2, 5,38, C.sh0);   // left strap highlight
+    box(ctx, shx+10,shy-2, 7,38, C.sh2);   // right strap shadow
+    box(ctx, shx+10,shy-2, 5,38, C.sh0);   // right strap highlight
+  }
+
+  // Belt (all styles)
+  const bg = ctx.createLinearGradient(hx-13,hy-8, hx+13,hy-8);
+  bg.addColorStop(0,'#2a1808'); bg.addColorStop(0.5,'#3a2410'); bg.addColorStop(1,'#2a1808');
+  ctx.fillStyle=bg;
+  ctx.fillRect((hx-14)|0,(hy-8)|0,28,8);
+  // Buckle
+  ctx.fillStyle='#807050';
+  ctx.fillRect((hx-5)|0,(hy-7)|0,10,6);
+  ctx.fillStyle='#605040';
+  ctx.fillRect((hx-3)|0,(hy-6)|0,6,4);
+  // Belt highlight
+  ctx.fillStyle='rgba(255,200,80,0.25)';
+  ctx.fillRect((hx-14)|0,(hy-8)|0,28,2);
+
+  // Dog tags (visible if bare/tank)
+  if (ts!=='vest') {
+    ctx.strokeStyle='#c0b090'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(shx|0,(shy+4)|0); ctx.lineTo(shx|0,(shy+22)|0); ctx.stroke();
+    ctx.fillStyle='#b0a080';
+    ctx.fillRect((shx-4)|0,(shy+22)|0,8,5);
+    ctx.fillRect((shx-4)|0,(shy+28)|0,8,5);
+    ctx.fillStyle='rgba(255,255,200,0.3)';
+    ctx.fillRect((shx-3)|0,(shy+23)|0,8,1);
+  }
+}
+
+// ── PECS ──────────────────────────────────────────────────────
+function drawPecs(ctx, shx, shy, C) {
+  // Left pec
+  const lg=ctx.createRadialGradient(shx-10,shy+10,2, shx-10,shy+10,16);
+  lg.addColorStop(0,C.sk0); lg.addColorStop(0.5,C.sk2); lg.addColorStop(1,C.sk4);
+  ctx.fillStyle=lg;
+  ctx.beginPath();
+  ctx.moveTo((shx-2)|0,(shy+5)|0);
+  ctx.bezierCurveTo((shx-20)|0,(shy+3)|0,(shx-22)|0,(shy+18)|0,(shx-16)|0,(shy+23)|0);
+  ctx.bezierCurveTo((shx-9)|0,(shy+25)|0,(shx-2)|0,(shy+19)|0,(shx-2)|0,(shy+12)|0);
+  ctx.closePath(); ctx.fill();
+
+  // Right pec
+  const rg=ctx.createRadialGradient(shx+10,shy+10,2, shx+10,shy+10,16);
+  rg.addColorStop(0,C.sk0); rg.addColorStop(0.5,C.sk2); rg.addColorStop(1,C.sk4);
+  ctx.fillStyle=rg;
+  ctx.beginPath();
+  ctx.moveTo((shx+2)|0,(shy+5)|0);
+  ctx.bezierCurveTo((shx+20)|0,(shy+3)|0,(shx+22)|0,(shy+18)|0,(shx+16)|0,(shy+23)|0);
+  ctx.bezierCurveTo((shx+9)|0,(shy+25)|0,(shx+2)|0,(shy+19)|0,(shx+2)|0,(shy+12)|0);
+  ctx.closePath(); ctx.fill();
+
+  // Pec separation line
+  ctx.strokeStyle=C.sk4; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(shx|0,(shy+5)|0); ctx.lineTo(shx|0,(shy+22)|0); ctx.stroke();
+
+  // Nipple highlights
+  ctx.fillStyle=C.sk3;
+  ov(ctx,shx-12,shy+19,2.5,2,C.sk3);
+  ov(ctx,shx+12,shy+19,2.5,2,C.sk3);
+}
+
+// ── ABS ────────────────────────────────────────────────────────
+function drawAbs(ctx, shx, shy, hx, hy, C) {
+  const mid = (shy+hy)/2;
+  ctx.strokeStyle=C.sk4; ctx.lineWidth=1;
+  // Center line
+  ctx.beginPath(); ctx.moveTo(shx|0,(shy+24)|0); ctx.lineTo(hx|0,(hy-6)|0); ctx.stroke();
+  // Horizontal rib lines (3 rows)
+  for (let i=0;i<3;i++){
+    const y=(shy+28+i*11)|0;
+    ctx.globalAlpha=0.5+i*0.1;
+    ctx.beginPath(); ctx.moveTo((shx-9)|0,y); ctx.lineTo((shx+9)|0,y); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  // Ab block highlights
+  ctx.fillStyle=C.sk1;
+  ctx.globalAlpha=0.22;
+  for (let i=0;i<3;i++){
+    const y=(shy+25+i*11)|0;
+    ov(ctx,shx-5,y+2,4,4,C.sk0);
+    ov(ctx,shx+5,y+2,4,4,C.sk0);
+  }
+  ctx.globalAlpha=1;
+}
+
+// ── GUN ───────────────────────────────────────────────────────
+function drawGun(ctx, hx,hy, extended, C) {
+  if(extended){
+    const gx=(hx)|0, gy=(hy-4)|0;
+    box(ctx,gx,gy-3,22,8, C.gu1);
+    box(ctx,gx,gy-3,22,2, C.gu0);
+    box(ctx,gx+3,gy+4,7,10,C.gu1);
+    box(ctx,gx+18,gy-2,7,4, C.gu2);
+    box(ctx,gx+6,gy-2,10,2, C.gu0);
+    // Trigger
+    ctx.strokeStyle=C.gu2; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo((gx+10)|0,(gy+1)|0); ctx.lineTo((gx+8)|0,(gy+5)|0); ctx.stroke();
+  } else {
+    const gx=(hx-4)|0, gy=hy|0;
+    box(ctx,gx,gy,9,14,C.gu1);
+    box(ctx,gx,gy,9,2,C.gu0);
+    box(ctx,gx+1,gy+14,5,3,C.gu2);
+    ctx.strokeStyle=C.gu2; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo((gx+3)|0,(gy+4)|0); ctx.lineTo((gx+5)|0,(gy+9)|0); ctx.stroke();
+  }
+}
+
+// ── HEAD ──────────────────────────────────────────────────────
+function drawHead(ctx, hx, hy, C) {
+  const HC={x:hx, y:hy};
+
+  // Neck (with muscle definition)
+  const ng=ctx.createLinearGradient(HC.x-7,HC.y+13, HC.x+7,HC.y+13);
+  ng.addColorStop(0,C.sk4); ng.addColorStop(0.3,C.sk1); ng.addColorStop(0.7,C.sk2); ng.addColorStop(1,C.sk4);
+  ctx.fillStyle=ng;
+  ctx.fillRect((HC.x-6)|0,(HC.y+13)|0,12,11);
+  // Neck muscle lines
+  ctx.strokeStyle=C.sk4; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo((HC.x-3)|0,(HC.y+14)|0); ctx.lineTo((HC.x-3)|0,(HC.y+24)|0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo((HC.x+3)|0,(HC.y+14)|0); ctx.lineTo((HC.x+3)|0,(HC.y+24)|0); ctx.stroke();
+
+  // Head base shape (slightly angular jaw — male)
+  const hg=ctx.createRadialGradient(HC.x-5,HC.y-2,3, HC.x,HC.y,19);
+  hg.addColorStop(0,C.sk0); hg.addColorStop(0.45,C.sk2); hg.addColorStop(1,C.sk4);
+  ctx.fillStyle=hg;
+  ctx.beginPath();
+  // Crown
+  ctx.moveTo((HC.x-14)|0,(HC.y-8)|0);
+  ctx.bezierCurveTo((HC.x-16)|0,(HC.y-18)|0,(HC.x-8)|0,(HC.y-22)|0,(HC.x)|0,(HC.y-22)|0);
+  ctx.bezierCurveTo((HC.x+12)|0,(HC.y-22)|0,(HC.x+16)|0,(HC.y-12)|0,(HC.x+15)|0,(HC.y+2)|0);
+  // Jaw (angular for male)
+  ctx.bezierCurveTo((HC.x+14)|0,(HC.y+10)|0,(HC.x+10)|0,(HC.y+16)|0,(HC.x+5)|0,(HC.y+16)|0);
+  ctx.lineTo((HC.x-5)|0,(HC.y+16)|0);
+  ctx.bezierCurveTo((HC.x-10)|0,(HC.y+16)|0,(HC.x-14)|0,(HC.y+12)|0,(HC.x-14)|0,(HC.y+4)|0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Cheekbone highlight
+  ctx.fillStyle=C.sk1;
+  ctx.globalAlpha=0.5;
+  ov(ctx,HC.x-5,HC.y+2,7,5,C.sk1,0.35);
+  ctx.globalAlpha=1;
+
+  // Ear
+  ctx.fillStyle=C.sk3;
+  ctx.beginPath();
+  ctx.ellipse((HC.x+15)|0,(HC.y+3)|0,5,6,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle=C.sk2;
+  ctx.beginPath();
+  ctx.ellipse((HC.x+15)|0,(HC.y+3)|0,3,4,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle=C.sk4; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc((HC.x+15)|0,(HC.y+3)|0,2,0,Math.PI*2); ctx.stroke();
+
+  // ── HEADGEAR ────────────────────────────────────────────────
+  drawHeadgear(ctx, HC.x, HC.y, C);
+
+  // ── FACE FEATURES ───────────────────────────────────────────
+
+  // Brow ridge shadow
+  ctx.fillStyle=C.sk4;
+  ctx.globalAlpha=0.5;
+  ctx.beginPath();
+  ctx.ellipse((HC.x)|0,(HC.y-6)|0,12,3,0,0,Math.PI*2);
+  ctx.fill(); ctx.globalAlpha=1;
+
+  // Eyes — white, iris, pupil
+  ov(ctx,HC.x-5,HC.y-3, 4,3.5, '#efe8d5');
+  ov(ctx,HC.x+4,HC.y-3, 4,3.5, '#efe8d5');
+  ov(ctx,HC.x-5,HC.y-3, 2.8,3, '#5a3a18');  // iris
+  ov(ctx,HC.x+4,HC.y-3, 2.8,3, '#5a3a18');
+  ov(ctx,HC.x-5,HC.y-3, 1.5,2, C.eye);      // pupil
+  ov(ctx,HC.x+4,HC.y-3, 1.5,2, C.eye);
+  ov(ctx,HC.x-4,HC.y-4, 1,1.2, '#fff8');    // glint
+  // Eyelid line
+  ctx.strokeStyle=C.sk4; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo((HC.x-9)|0,(HC.y-4)|0); ctx.quadraticCurveTo((HC.x-5)|0,(HC.y-7)|0,(HC.x-1)|0,(HC.y-4)|0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo((HC.x)|0,(HC.y-4)|0); ctx.quadraticCurveTo((HC.x+4)|0,(HC.y-7)|0,(HC.x+8)|0,(HC.y-4)|0); ctx.stroke();
+
+  // Eyebrows (strong, angular — male)
+  ctx.fillStyle=C.hr1;
+  ctx.beginPath();
+  ctx.moveTo((HC.x-10)|0,(HC.y-8)|0);
+  ctx.lineTo((HC.x-1)|0, (HC.y-7)|0);
+  ctx.lineTo((HC.x-1)|0, (HC.y-5)|0);
+  ctx.lineTo((HC.x-11)|0,(HC.y-6)|0);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo((HC.x)|0,   (HC.y-7)|0);
+  ctx.lineTo((HC.x+9)|0, (HC.y-8)|0);
+  ctx.lineTo((HC.x+9)|0, (HC.y-6)|0);
+  ctx.lineTo((HC.x)|0,   (HC.y-5)|0);
+  ctx.closePath(); ctx.fill();
+
+  // Nose — bridge + nostrils (3/4 perspective)
+  ctx.strokeStyle=C.sk4; ctx.lineWidth=1.5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo((HC.x-1)|0,(HC.y-2)|0); ctx.lineTo((HC.x+2)|0,(HC.y+6)|0); ctx.stroke();
+  ctx.strokeStyle=C.sk3;
+  ctx.beginPath(); ctx.arc((HC.x+4)|0,(HC.y+6)|0,2.5,0.3*Math.PI,0.95*Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.arc((HC.x-1)|0,(HC.y+6)|0,2.5,0.05*Math.PI,0.72*Math.PI); ctx.stroke();
+
+  // Upper lip
+  ctx.strokeStyle=C.sk4; ctx.lineWidth=1.2;
+  ctx.beginPath();
+  ctx.moveTo((HC.x-5)|0,(HC.y+11)|0);
+  ctx.bezierCurveTo((HC.x-2)|0,(HC.y+9)|0,(HC.x+2)|0,(HC.y+9)|0),(HC.x+5)|0,(HC.y+11)|0);
+  ctx.stroke();
+  // Lower lip
+  ctx.fillStyle=mix(C.sk2,'#d07060',0.3);
+  ctx.beginPath(); ctx.ellipse(HC.x|0,(HC.y+13)|0,4,2.5,0,0,Math.PI); ctx.fill();
+  // Chin cleft
+  ctx.strokeStyle=C.sk4; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(HC.x|0,(HC.y+14)|0); ctx.lineTo(HC.x|0,(HC.y+17)|0); ctx.stroke();
+
+  // Stubble
+  ctx.fillStyle='rgba(30,15,8,0.18)';
+  ctx.beginPath(); ctx.arc(HC.x|0,(HC.y+10)|0,11,0.1*Math.PI,0.9*Math.PI); ctx.fill();
+}
+
+// ── HEADGEAR ──────────────────────────────────────────────────
+function drawHeadgear(ctx, hx, hy, C) {
+  switch(C.acc){
+    case 'headband': {
+      // Hair first — flowing back
+      const hg=ctx.createLinearGradient(hx-14,hy-22, hx+8,hy-18);
+      hg.addColorStop(0,C.hr0); hg.addColorStop(0.5,C.hr1); hg.addColorStop(1,C.hr2);
+      ctx.fillStyle=hg;
+      ctx.beginPath();
+      ctx.moveTo((hx-14)|0,(hy-8)|0);
+      ctx.bezierCurveTo((hx-16)|0,(hy-18)|0,(hx-8)|0,(hy-22)|0,(hx)|0,(hy-22)|0);
+      ctx.bezierCurveTo((hx+12)|0,(hy-22)|0,(hx+14)|0,(hy-18)|0,(hx+14)|0,(hy-8)|0);
+      ctx.closePath(); ctx.fill();
+      // Hair strands highlight
+      ctx.strokeStyle=C.hr0; ctx.lineWidth=1.2; ctx.globalAlpha=0.6;
+      ctx.beginPath(); ctx.moveTo((hx-10)|0,(hy-20)|0); ctx.bezierCurveTo((hx-8)|0,(hy-10)|0,(hx-6)|0,(hy-6)|0),(hx-4)|0,(hy-5)|0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo((hx-4)|0,(hy-21)|0); ctx.bezierCurveTo((hx-2)|0,(hy-10)|0,(hx)|0,(hy-5)|0),(hx+2)|0,(hy-4)|0); ctx.stroke();
+      ctx.globalAlpha=1;
+      // Headband
+      ctx.fillStyle=C.bn1;
+      ctx.beginPath();
+      ctx.moveTo((hx-16)|0,(hy-7)|0);
+      ctx.lineTo((hx+15)|0,(hy-8)|0);
+      ctx.lineTo((hx+15)|0,(hy-1)|0);
+      ctx.lineTo((hx-16)|0,(hy-1)|0);
+      ctx.closePath(); ctx.fill();
+      box(ctx,hx-16,hy-7,31,3,C.bn0);  // highlight
+      box(ctx,hx-16,hy-2,31,2,C.bn2);  // shadow
+      // Knot (right side — wraps around)
+      ctx.fillStyle=C.bn2;
+      ctx.beginPath(); ctx.ellipse((hx+14)|0,(hy-4)|0,4,4,0.4,0,Math.PI*2); ctx.fill();
+      break;
+    }
+    case 'beret': {
+      const bg=ctx.createRadialGradient(hx-4,hy-12,2, hx,hy-8,18);
+      bg.addColorStop(0,C.bn0); bg.addColorStop(0.6,C.bn1); bg.addColorStop(1,C.bn2);
+      ctx.fillStyle=bg;
+      ctx.beginPath();
+      ctx.moveTo((hx-15)|0,(hy-5)|0);
+      ctx.bezierCurveTo((hx-16)|0,(hy-18)|0,(hx-4)|0,(hy-24)|0,(hx+6)|0,(hy-22)|0);
+      ctx.bezierCurveTo((hx+18)|0,(hy-18)|0,(hx+16)|0,(hy-8)|0,(hx+14)|0,(hy-4)|0);
+      ctx.lineTo((hx-15)|0,(hy-4)|0);
+      ctx.closePath(); ctx.fill();
+      // Band
+      box(ctx,hx-16,hy-6,31,5,C.bn2);
+      box(ctx,hx-16,hy-6,31,2,lighten(C.bn2,15));
+      // Badge
+      ov(ctx,hx-4,hy-14,4,4,'#807050');
+      ov(ctx,hx-4,hy-14,2.5,2.5,'#606040');
+      break;
+    }
+    case 'bandana': {
+      // Hair
+      ctx.fillStyle=C.hr1;
+      ctx.beginPath();
+      ctx.moveTo((hx-14)|0,(hy-6)|0);
+      ctx.bezierCurveTo((hx-16)|0,(hy-16)|0,(hx-8)|0,(hy-22)|0,hx|0,(hy-22)|0);
+      ctx.bezierCurveTo((hx+12)|0,(hy-22)|0,(hx+15)|0,(hy-14)|0,(hx+14)|0,(hy-6)|0);
+      ctx.closePath(); ctx.fill();
+      // Bandana fabric
+      ctx.fillStyle=C.bn1;
+      ctx.beginPath();
+      ctx.moveTo((hx-16)|0,(hy-4)|0);
+      ctx.lineTo((hx-16)|0,(hy-10)|0);
+      ctx.bezierCurveTo((hx-14)|0,(hy-16)|0,(hx-4)|0,(hy-18)|0,hx|0,(hy-18)|0);
+      ctx.bezierCurveTo((hx+12)|0,(hy-17)|0,(hx+15)|0,(hy-10)|0,(hx+15)|0,(hy-4)|0);
+      ctx.closePath(); ctx.fill();
+      box(ctx,hx-16,hy-10,31,3,C.bn0);
+      // Pattern
+      ctx.strokeStyle=C.bn2; ctx.lineWidth=1; ctx.globalAlpha=0.5;
+      for(let i=0;i<5;i++){ ctx.beginPath(); ctx.moveTo((hx-14+i*8)|0,(hy-10)|0); ctx.lineTo((hx-16+i*8)|0,(hy-4)|0); ctx.stroke(); }
+      ctx.globalAlpha=1;
+      break;
+    }
+    case 'cap': {
+      const cg=ctx.createLinearGradient(hx-14,hy-12, hx+14,hy-6);
+      cg.addColorStop(0,C.bn2); cg.addColorStop(0.5,C.bn0); cg.addColorStop(1,C.bn2);
+      ctx.fillStyle=cg;
+      ctx.beginPath();
+      ctx.moveTo((hx-14)|0,(hy-5)|0);
+      ctx.bezierCurveTo((hx-16)|0,(hy-16)|0,(hx-8)|0,(hy-20)|0,hx|0,(hy-20)|0);
+      ctx.bezierCurveTo((hx+12)|0,(hy-20)|0,(hx+15)|0,(hy-12)|0,(hx+14)|0,(hy-4)|0);
+      ctx.lineTo((hx-14)|0,(hy-4)|0);
+      ctx.closePath(); ctx.fill();
+      // Band
+      box(ctx,hx-15,hy-6,30,5,C.bn2);
+      box(ctx,hx-15,hy-6,30,2,C.bn0);
+      // Brim forward
+      ctx.fillStyle=C.bn2;
+      ctx.beginPath(); ctx.ellipse((hx+6)|0,(hy-3)|0,13,4,-0.15,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=C.bn0;
+      ctx.beginPath(); ctx.ellipse((hx+6)|0,(hy-4)|0,13,2,-0.15,0,Math.PI); ctx.fill();
+      break;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  ANIMATION POSES
+// ─────────────────────────────────────────────────────────────
+function poseIdle(f){ const t=f/8,bob=Math.sin(t*Math.PI*2)*1.3; return {bob,lTA:.05,rTA:-.04,lCA:.06,rCA:.06,lUA:.14,rUA:-.14,lFA:.2,rFA:.2}; }
+
+function poseWalk(f){
+  const a=(f/9)*Math.PI*2,sw=.45;
+  return { bob:Math.abs(Math.sin(a))*-2.5, lTA:Math.sin(a)*sw, rTA:-Math.sin(a)*sw,
+    lCA:Math.max(0,Math.sin(a+.8))*.52, rCA:Math.max(0,Math.sin(a+.8+Math.PI))*.52,
+    lUA:-Math.sin(a)*.25, rUA:Math.sin(a)*.25, lFA:.12, rFA:.24 };
+}
+
+function poseJump(f){
+  const t=f/8; let lT,rT,lC,rC,bob;
+  if(t<.22){const p=t/.22;lT=lerp(0,.28,p);rT=lerp(0,-.28,p);lC=lerp(.06,.38,p);rC=lerp(.06,.38,p);bob=lerp(0,5,p);}
+  else if(t<.62){const p=(t-.22)/.4;lT=lerp(.28,-.42,p);rT=lerp(-.28,.42,p);lC=lerp(.38,.05,p);rC=lerp(.38,.05,p);bob=lerp(5,-10,p);}
+  else{const p=(t-.62)/.38;lT=lerp(-.42,0,p);rT=lerp(.42,0,p);lC=lerp(.05,.06,p);rC=lerp(.05,.06,p);bob=lerp(-10,2,p);}
+  return {bob,lTA:lT,rTA:rT,lCA:lC,rCA:rC,lUA:.2,rUA:-.2,lFA:.1,rFA:.1};
+}
+
+function poseShoot(f){
+  const t=f/8,rc=t<.18?t/.18:Math.max(0,1-(t-.18)/.36);
+  return {bob:-rc*3,lTA:.05,rTA:-.05,lCA:.07,rCA:.07,lUA:.16,lFA:.18,rUA:0,rFA:0,shoot:true};
+}
+
+function poseDie(f){
+  const t=f/8;
+  return {dying:t*.9,lTA:t*.28,rTA:t*.36,lCA:t*.22,rCA:t*.32,lUA:t*.5,rUA:t*.32,lFA:.2,rFA:.2};
+}
+
+const ANIMS=[
+  {prefix:'01_idle_',           label:'01  IDLE',            pose:poseIdle},
+  {prefix:'02_walking_',        label:'02  WALKING',         pose:poseWalk},
+  {prefix:'03_jumping_',        label:'03  JUMPING',         pose:poseJump},
+  {prefix:'04_pistol_shooting_',label:'04  PISTOL SHOOTING', pose:poseShoot},
+  {prefix:'08_dying_',          label:'08  DYING',           pose:poseDie},
+];
+
+// ─────────────────────────────────────────────────────────────
+//  PREVIEW
+// ─────────────────────────────────────────────────────────────
+const canvases={};
+function buildPreview(){
+  const c=document.getElementById('preview'); c.innerHTML='';
+  for(const a of ANIMS){
+    const h=document.createElement('h2'); h.textContent=a.label; c.appendChild(h);
+    const row=document.createElement('div'); row.className='row';
+    for(let f=0;f<9;f++){
+      const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+      cv.style.width=(W*ZOOM)+'px'; cv.style.height=(H*ZOOM)+'px';
+      cv.title=`${a.prefix}${String(f+1).padStart(2,'0')}.png`;
+      canvases[a.prefix+f]=cv; row.appendChild(cv);
+    }
+    c.appendChild(row);
+  }
+}
+
+function regenerate(){
+  const C=getC();
+  for(const a of ANIMS) for(let f=0;f<9;f++){
+    const c=canvases[a.prefix+f]; if(!c) continue;
+    drawChar(c.getContext('2d'),a.pose(f),C);
+  }
+  id('status').textContent='✓ Regenerated — adjust controls and regenerate, or download.';
+}
+
+function setZoom(z){
+  ZOOM=z;
+  document.querySelectorAll('.zb').forEach((b,i)=>b.classList.toggle('on',i===z-1));
+  document.querySelectorAll('#preview canvas').forEach(c=>{c.style.width=(W*z)+'px';c.style.height=(H*z)+'px';});
+}
+
+// ─────────────────────────────────────────────────────────────
+//  RANDOMIZE
+// ─────────────────────────────────────────────────────────────
+function hsl2hex(h,s,l){
+  s/=100;l/=100;const q=l<.5?l*(1+s):l+s-l*s,p=2*l-q;
+  function f(t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<.5)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;}
+  const r=Math.round(f(h/360+1/3)*255),g=Math.round(f(h/360)*255),b=Math.round(f(h/360-1/3)*255);
+  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+function rnd(a,b){return a+Math.random()*(b-a);}
+function randomize(){
+  const skinH=rnd(15,30), skinS=rnd(40,65), skinL=rnd(28,42);
+  id('c-skin').value =hsl2hex(skinH,skinS,skinL);
+  id('c-hair').value =['#1c0c04','#241408','#3a1c08','#080606','#5a3010'][Math.floor(Math.random()*5)];
+  id('c-band').value =hsl2hex(rnd(0,360),rnd(55,80),rnd(25,45));
+  id('c-shirt').value=hsl2hex(rnd(0,360),rnd(28,55),rnd(18,32));
+  id('c-pants').value=hsl2hex(rnd(0,360),rnd(25,50),rnd(15,28));
+  id('c-boot').value =hsl2hex(rnd(10,30),rnd(20,40),rnd(8,18));
+  const accs=['headband','beret','bandana','cap'],tops=['vest','tank','bare'];
+  id('c-acc').value=accs[Math.floor(Math.random()*accs.length)];
+  id('c-top').value=tops[Math.floor(Math.random()*tops.length)];
+  regenerate();
+}
+
+// ─────────────────────────────────────────────────────────────
+//  DOWNLOAD
+// ─────────────────────────────────────────────────────────────
+async function downloadAll(){
+  const st=id('status');
+  if(typeof JSZip==='undefined'){st.textContent='⚠ JSZip not loaded.';return;}
+  st.textContent='⏳ Packaging 45 sprites…';
+  const C=getC(), zip=new JSZip(), dir=zip.folder('male_soldier');
+  for(const a of ANIMS) for(let f=0;f<9;f++){
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    drawChar(c.getContext('2d'),a.pose(f),C);
+    const fname=`${a.prefix}${String(f+1).padStart(2,'0')}.png`;
+    const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+    dir.file(fname,blob);
+  }
+  const content=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(content); a.download='male_soldier_sprites.zip'; a.click();
+  st.textContent='✓ Downloaded male_soldier_sprites.zip — 45 sprites ready for images/male_soldier/';
+}
+
+buildPreview();
+regenerate();
+</script>
+</body>
+</html>

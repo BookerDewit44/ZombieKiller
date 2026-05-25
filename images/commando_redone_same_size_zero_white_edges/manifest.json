@@ -1,0 +1,579 @@
+{
+  "canvas_size": [
+    360,
+    240
+  ],
+  "source": "a_clean_game_sprite_sheet_style_image_on_a_transpa.png",
+  "sprites": [
+    {
+      "file": "basic_movement_air_run/commando_basic_movement_air_run_01.png",
+      "source_box": [
+        1250,
+        22,
+        109,
+        184
+      ],
+      "category": "basic_movement_air_run"
+    },
+    {
+      "file": "basic_movement_air_run/commando_basic_movement_air_run_02.png",
+      "source_box": [
+        1363,
+        23,
+        117,
+        181
+      ],
+      "category": "basic_movement_air_run"
+    },
+    {
+      "file": "basic_movement_air_run/commando_basic_movement_air_run_03.png",
+      "source_box": [
+        1131,
+        21,
+        106,
+        182
+      ],
+      "category": "basic_movement_air_run"
+    },
+    {
+      "file": "basic_movement_air_run/commando_basic_movement_air_run_04.png",
+      "source_box": [
+        1010,
+        20,
+        103,
+        185
+      ],
+      "category": "basic_movement_air_run"
+    },
+    {
+      "file": "basic_movement_air_run/commando_basic_movement_air_run_05.png",
+      "source_box": [
+        886,
+        19,
+        107,
+        186
+      ],
+      "category": "basic_movement_air_run"
+    },
+    {
+      "file": "basic_movement_air_run/commando_basic_movement_air_run_06.png",
+      "source_box": [
+        767,
+        18,
+        102,
+        191
+      ],
+      "category": "basic_movement_air_run"
+    },
+    {
+      "file": "turnaround/commando_turnaround_01.png",
+      "source_box": [
+        527,
+        15,
+        92,
+        210
+      ],
+      "category": "turnaround"
+    },
+    {
+      "file": "turnaround/commando_turnaround_02.png",
+      "source_box": [
+        647,
+        15,
+        90,
+        210
+      ],
+      "category": "turnaround"
+    },
+    {
+      "file": "turnaround/commando_turnaround_03.png",
+      "source_box": [
+        25,
+        15,
+        94,
+        210
+      ],
+      "category": "turnaround"
+    },
+    {
+      "file": "turnaround/commando_turnaround_04.png",
+      "source_box": [
+        403,
+        15,
+        91,
+        210
+      ],
+      "category": "turnaround"
+    },
+    {
+      "file": "turnaround/commando_turnaround_05.png",
+      "source_box": [
+        149,
+        15,
+        94,
+        210
+      ],
+      "category": "turnaround"
+    },
+    {
+      "file": "turnaround/commando_turnaround_06.png",
+      "source_box": [
+        273,
+        15,
+        95,
+        210
+      ],
+      "category": "turnaround"
+    },
+    {
+      "file": "basic_movement_run_dash/commando_basic_movement_run_dash_01.png",
+      "source_box": [
+        1118,
+        241,
+        140,
+        141
+      ],
+      "category": "basic_movement_run_dash"
+    },
+    {
+      "file": "basic_movement_run_dash/commando_basic_movement_run_dash_02.png",
+      "source_box": [
+        833,
+        241,
+        127,
+        146
+      ],
+      "category": "basic_movement_run_dash"
+    },
+    {
+      "file": "basic_movement_idle_walk_jump/commando_basic_movement_idle_walk_jump_01.png",
+      "source_box": [
+        167,
+        246,
+        76,
+        133
+      ],
+      "category": "basic_movement_idle_walk_jump"
+    },
+    {
+      "file": "basic_movement_run_dash/commando_basic_movement_run_dash_03.png",
+      "source_box": [
+        689,
+        242,
+        129,
+        146
+      ],
+      "category": "basic_movement_run_dash"
+    },
+    {
+      "file": "basic_movement_run_dash/commando_basic_movement_run_dash_04.png",
+      "source_box": [
+        977,
+        241,
+        124,
+        147
+      ],
+      "category": "basic_movement_run_dash"
+    },
+    {
+      "file": "basic_movement_idle_walk_jump/commando_basic_movement_idle_walk_jump_02.png",
+      "source_box": [
+        410,
+        251,
+        104,
+        136
+      ],
+      "category": "basic_movement_idle_walk_jump"
+    },
+    {
+      "file": "basic_movement_idle_walk_jump/commando_basic_movement_idle_walk_jump_03.png",
+      "source_box": [
+        267,
+        248,
+        108,
+        140
+      ],
+      "category": "basic_movement_idle_walk_jump"
+    },
+    {
+      "file": "basic_movement_idle_walk_jump/commando_basic_movement_idle_walk_jump_04.png",
+      "source_box": [
+        36,
+        247,
+        77,
+        141
+      ],
+      "category": "basic_movement_idle_walk_jump"
+    },
+    {
+      "file": "basic_movement_run_dash/commando_basic_movement_run_dash_05.png",
+      "source_box": [
+        1294,
+        241,
+        155,
+        127
+      ],
+      "category": "basic_movement_run_dash"
+    },
+    {
+      "file": "basic_movement_idle_walk_jump/commando_basic_movement_idle_walk_jump_05.png",
+      "source_box": [
+        542,
+        283,
+        117,
+        103
+      ],
+      "category": "basic_movement_idle_walk_jump"
+    },
+    {
+      "file": "melee_attack/commando_melee_attack_01.png",
+      "source_box": [
+        377,
+        403,
+        159,
+        158
+      ],
+      "category": "melee_attack"
+    },
+    {
+      "file": "melee_attack/commando_melee_attack_02.png",
+      "source_box": [
+        142,
+        403,
+        90,
+        158
+      ],
+      "category": "melee_attack"
+    },
+    {
+      "file": "melee_attack/commando_melee_attack_03.png",
+      "source_box": [
+        545,
+        402,
+        101,
+        160
+      ],
+      "category": "melee_attack"
+    },
+    {
+      "file": "melee_attack/commando_melee_attack_04.png",
+      "source_box": [
+        248,
+        404,
+        118,
+        156
+      ],
+      "category": "melee_attack"
+    },
+    {
+      "file": "pistol_shooting/commando_pistol_shooting_01.png",
+      "source_box": [
+        949,
+        408,
+        113,
+        153
+      ],
+      "category": "pistol_shooting"
+    },
+    {
+      "file": "melee_attack/commando_melee_attack_05.png",
+      "source_box": [
+        15,
+        403,
+        106,
+        158
+      ],
+      "category": "melee_attack"
+    },
+    {
+      "file": "pistol_shooting/commando_pistol_shooting_02.png",
+      "source_box": [
+        809,
+        407,
+        111,
+        154
+      ],
+      "category": "pistol_shooting"
+    },
+    {
+      "file": "pistol_shooting/commando_pistol_shooting_03.png",
+      "source_box": [
+        1089,
+        408,
+        120,
+        153
+      ],
+      "category": "pistol_shooting"
+    },
+    {
+      "file": "pistol_shooting/commando_pistol_shooting_04.png",
+      "source_box": [
+        674,
+        407,
+        109,
+        154
+      ],
+      "category": "pistol_shooting"
+    },
+    {
+      "file": "rifle_crouch_shooting/commando_rifle_crouch_shooting_01.png",
+      "source_box": [
+        1231,
+        421,
+        116,
+        137
+      ],
+      "category": "rifle_crouch_shooting"
+    },
+    {
+      "file": "rifle_crouch_shooting/commando_rifle_crouch_shooting_02.png",
+      "source_box": [
+        1371,
+        435,
+        149,
+        123
+      ],
+      "category": "rifle_crouch_shooting"
+    },
+    {
+      "file": "rifle_shooting/commando_rifle_shooting_01.png",
+      "source_box": [
+        159,
+        580,
+        148,
+        155
+      ],
+      "category": "rifle_shooting"
+    },
+    {
+      "file": "rifle_shooting/commando_rifle_shooting_02.png",
+      "source_box": [
+        14,
+        576,
+        129,
+        160
+      ],
+      "category": "rifle_shooting"
+    },
+    {
+      "file": "rifle_shooting/commando_rifle_shooting_03.png",
+      "source_box": [
+        312,
+        581,
+        153,
+        155
+      ],
+      "category": "rifle_shooting"
+    },
+    {
+      "file": "rocket_launcher_shooting/commando_rocket_launcher_shooting_01.png",
+      "source_box": [
+        988,
+        593,
+        206,
+        141
+      ],
+      "category": "rocket_launcher_shooting"
+    },
+    {
+      "file": "rocket_launcher_shooting/commando_rocket_launcher_shooting_02.png",
+      "source_box": [
+        1205,
+        602,
+        319,
+        130
+      ],
+      "category": "rocket_launcher_shooting"
+    },
+    {
+      "file": "rifle_shooting/commando_rifle_shooting_04.png",
+      "source_box": [
+        492,
+        587,
+        160,
+        149
+      ],
+      "category": "rifle_shooting"
+    },
+    {
+      "file": "rifle_shooting/commando_rifle_shooting_05.png",
+      "source_box": [
+        663,
+        587,
+        153,
+        149
+      ],
+      "category": "rifle_shooting"
+    },
+    {
+      "file": "rifle_shooting/commando_rifle_shooting_06.png",
+      "source_box": [
+        824,
+        588,
+        136,
+        148
+      ],
+      "category": "rifle_shooting"
+    },
+    {
+      "file": "grenade_throw_hit_reaction/commando_grenade_throw_hit_reaction_01.png",
+      "source_box": [
+        458,
+        763,
+        119,
+        151
+      ],
+      "category": "grenade_throw_hit_reaction"
+    },
+    {
+      "file": "grenade_throw_hit_reaction/commando_grenade_throw_hit_reaction_02.png",
+      "source_box": [
+        162,
+        754,
+        92,
+        162
+      ],
+      "category": "grenade_throw_hit_reaction"
+    },
+    {
+      "file": "grenade_throw_hit_reaction/commando_grenade_throw_hit_reaction_03.png",
+      "source_box": [
+        597,
+        773,
+        124,
+        141
+      ],
+      "category": "grenade_throw_hit_reaction"
+    },
+    {
+      "file": "grenade_throw_hit_reaction/commando_grenade_throw_hit_reaction_04.png",
+      "source_box": [
+        299,
+        766,
+        121,
+        149
+      ],
+      "category": "grenade_throw_hit_reaction"
+    },
+    {
+      "file": "grenade_throw_hit_reaction/commando_grenade_throw_hit_reaction_05.png",
+      "source_box": [
+        25,
+        762,
+        89,
+        154
+      ],
+      "category": "grenade_throw_hit_reaction"
+    },
+    {
+      "file": "grenade_throw/commando_grenade_throw_01.png",
+      "source_box": [
+        1039,
+        781,
+        121,
+        131
+      ],
+      "category": "grenade_throw"
+    },
+    {
+      "file": "grenade_throw/commando_grenade_throw_02.png",
+      "source_box": [
+        917,
+        781,
+        81,
+        131
+      ],
+      "category": "grenade_throw"
+    },
+    {
+      "file": "grenade_throw/commando_grenade_throw_03.png",
+      "source_box": [
+        775,
+        796,
+        85,
+        109
+      ],
+      "category": "grenade_throw"
+    },
+    {
+      "file": "death_animation/commando_death_animation_01.png",
+      "source_box": [
+        138,
+        932,
+        113,
+        82
+      ],
+      "category": "death_animation"
+    },
+    {
+      "file": "death_animation/commando_death_animation_02.png",
+      "source_box": [
+        269,
+        932,
+        117,
+        81
+      ],
+      "category": "death_animation"
+    },
+    {
+      "file": "death_animation/commando_death_animation_03.png",
+      "source_box": [
+        24,
+        931,
+        101,
+        82
+      ],
+      "category": "death_animation"
+    },
+    {
+      "file": "death_animation/commando_death_animation_04.png",
+      "source_box": [
+        402,
+        932,
+        114,
+        81
+      ],
+      "category": "death_animation"
+    },
+    {
+      "file": "death_animation/commando_death_animation_05.png",
+      "source_box": [
+        552,
+        954,
+        123,
+        59
+      ],
+      "category": "death_animation"
+    },
+    {
+      "file": "death_animation/commando_death_animation_06.png",
+      "source_box": [
+        715,
+        966,
+        173,
+        43
+      ],
+      "category": "death_animation"
+    },
+    {
+      "file": "death_animation/commando_death_animation_07.png",
+      "source_box": [
+        1148,
+        967,
+        202,
+        46
+      ],
+      "category": "death_animation"
+    },
+    {
+      "file": "death_animation/commando_death_animation_08.png",
+      "source_box": [
+        927,
+        973,
+        177,
+        39
+      ],
+      "category": "death_animation"
+    }
+  ]
+}
