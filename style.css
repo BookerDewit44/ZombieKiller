@@ -12,20 +12,26 @@ body {
   min-height: 100vh;
   font-family: 'Courier New', monospace;
   overflow: hidden;
+  margin: 0;
 }
 
+/* Fill the viewport while preserving the 900:500 (1.8:1) aspect of the game canvas.
+   Internal canvas resolution stays 900×500 — CSS scales the display only. */
 #game-container {
   position: relative;
-  width: 900px;
-  height: 500px;
+  width: min(100vw, calc(100vh * 1.8));
+  height: min(100vh, calc(100vw / 1.8));
+  aspect-ratio: 9 / 5;
 }
 
 #gameCanvas {
   display: block;
-  width: 900px;
-  height: 500px;
-  border: 2px solid #ff4400;
-  box-shadow: 0 0 20px #ff4400, 0 0 60px rgba(255, 68, 0, 0.3);
+  width: 100%;
+  height: 100%;
+  border: none;
+  box-shadow: 0 0 30px #ff4400, 0 0 90px rgba(255, 68, 0, 0.25);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 #ui-overlay {
@@ -225,3 +231,66 @@ body {
   box-shadow: 0 0 30px rgba(255, 100, 0, 0.8);
   transform: scale(1.05);
 }
+
+/* ── Touch controls (mobile/tablet) ─────────────────────────── */
+#touch-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: none; /* shown only on coarse pointers (touch) */
+  z-index: 8;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  #touch-controls { display: block; }
+}
+
+#touch-left-pad {
+  position: absolute;
+  left: 2vw;
+  bottom: 2vh;
+  display: flex;
+  gap: 12px;
+}
+#touch-right-pad {
+  position: absolute;
+  right: 2vw;
+  bottom: 2vh;
+  display: flex;
+  gap: 12px;
+}
+
+.touch-btn {
+  pointer-events: auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 68, 0, 0.7);
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffaa66;
+  font-size: 26px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(255, 68, 0, 0.4);
+}
+.touch-btn:active {
+  background: rgba(255, 68, 0, 0.55);
+  color: #fff;
+  box-shadow: 0 0 22px rgba(255, 100, 0, 0.7);
+}
+#touch-shoot { background: rgba(40, 0, 0, 0.55); }
+#touch-jump  { background: rgba(0, 25, 40, 0.55); border-color: rgba(80, 180, 255, 0.7); color: #aaccff; }
+#touch-jump:active { background: rgba(60, 140, 220, 0.55); color: #fff; }
+
+html, body {
+  overscroll-behavior: none;
+  touch-action: none;
+}
+#gameCanvas { touch-action: none; }

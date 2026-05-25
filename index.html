@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Zombie Killer</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -23,6 +26,18 @@
         <button id="pause-btn" title="Pause (P)">⏸</button>
       </div>
     </div>
+    <!-- Touch controls (hidden on desktop via CSS) -->
+    <div id="touch-controls">
+      <div id="touch-left-pad">
+        <button class="touch-btn" id="touch-left" aria-label="Move left">◀</button>
+        <button class="touch-btn" id="touch-right" aria-label="Move right">▶</button>
+      </div>
+      <div id="touch-right-pad">
+        <button class="touch-btn" id="touch-shoot" aria-label="Shoot">🔫</button>
+        <button class="touch-btn" id="touch-jump" aria-label="Jump">⤴</button>
+      </div>
+    </div>
+
     <div id="screen-overlay" class="hidden">
       <div id="overlay-content">
         <h1 id="overlay-title">ZOMBIE KILLER</h1>

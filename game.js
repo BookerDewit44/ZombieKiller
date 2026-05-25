@@ -454,6 +454,7 @@ function createZombie(x, speed) {
     jumpTimer: 60 + Math.floor(Math.random() * 180),
     rising: true,
     riseSpeed: 2.2,
+    retreatTimer: 0,
   };
 }
 
@@ -1074,6 +1075,35 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 document.getElementById('pause-btn').addEventListener('click', () => togglePause());
 
+// ── Touch controls ───────────────────────────────────────────
+// Bind on-screen buttons to the same input state as the keyboard so the existing
+// movement/shoot/jump logic works unchanged on mobile.
+function bindTouchHold(elId, onDown, onUp) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const down = e => { e.preventDefault(); onDown(); };
+  const up   = e => { e.preventDefault(); onUp(); };
+  el.addEventListener('touchstart', down, { passive: false });
+  el.addEventListener('touchend',   up,   { passive: false });
+  el.addEventListener('touchcancel',up,   { passive: false });
+  // Mouse fallback so the buttons also work on a desktop testing in DevTools
+  el.addEventListener('mousedown',  down);
+  el.addEventListener('mouseup',    up);
+  el.addEventListener('mouseleave', up);
+}
+bindTouchHold('touch-left',
+  () => { keys['ArrowLeft']  = true;  },
+  () => { keys['ArrowLeft']  = false; });
+bindTouchHold('touch-right',
+  () => { keys['ArrowRight'] = true;  },
+  () => { keys['ArrowRight'] = false; });
+bindTouchHold('touch-jump',
+  () => { keys['Space']      = true;  },
+  () => { keys['Space']      = false; });
+bindTouchHold('touch-shoot',
+  () => { mouseDown = true; if (gameState === 'playing') shoot(); },
+  () => { mouseDown = false; });
+
 document.getElementById('start-btn').addEventListener('click', () => {
   if (gameState === 'menu') {
     startGame(); // music already running from intro/playlist — don't reset it
@@ -1104,7 +1134,8 @@ function startGame() {
   // Reset any lingering banshee state from a previous run.
   pendingZombieSpawn = false;
   try { sfxBanshee.pause(); sfxBanshee.currentTime = 0; } catch (_) {}
-  const _lp = [1,2,3,4,5];
+  // Level 1 is dog-free so players can get oriented before the dog mechanic shows up.
+  const _lp = [2,3,4,5];
   for (let _i = _lp.length-1; _i > 0; _i--) { const _j = Math.floor(Math.random()*(_i+1)); [_lp[_i],_lp[_j]]=[_lp[_j],_lp[_i]]; }
   dogLevels = [_lp[0], _lp[1]];
   dogEventState = 'idle'; dogFogAlpha = 0; pendingDogEvent = false;
@@ -1731,60 +1762,70 @@ function update() {
       }
 
     } else {
-      // Separation: don't bunch up. If another zombie is within personal space,
-      // push horizontally away — strong enough that the rear zombie briefly backs up
-      // when stacked, then resumes its pursuit when there's room.
-      let separation = 0;
-      const PERSONAL_SPACE = 46;
-      const myCx = z.x + z.w / 2;
-      for (const other of zombies) {
-        if (other === z || other.dead) continue;
-        const ddx = myCx - (other.x + other.w / 2);
-        const ddy = Math.abs((z.y + z.h / 2) - (other.y + other.h / 2));
-        if (ddy > 70) continue;       // ignore zombies on different platforms
-        const dist = Math.abs(ddx);
-        if (dist > 0 && dist < PERSONAL_SPACE) {
-          // Stronger push when closer; sign keeps you moving away from the other zombie
-          separation += Math.sign(ddx || (Math.random() - 0.5)) * (1 - dist / PERSONAL_SPACE) * 2.6;
+      // Post-attack retreat — jump backward away from the player
+      if (z.retreatTimer > 0) {
+        z.retreatTimer--;
+        z.vx = -dir * (z.type === 'big' ? 4.5 : 3.5);
+        if (z.state !== 'attack') z.state = 'walk';
+      } else {
+        // Separation: don't bunch up. If another zombie is within personal space,
+        // push horizontally away — strong enough that the rear zombie briefly backs up
+        // when stacked, then resumes its pursuit when there's room.
+        let separation = 0;
+        const PERSONAL_SPACE = 46;
+        const myCx = z.x + z.w / 2;
+        for (const other of zombies) {
+          if (other === z || other.dead) continue;
+          const ddx = myCx - (other.x + other.w / 2);
+          const ddy = Math.abs((z.y + z.h / 2) - (other.y + other.h / 2));
+          if (ddy > 70) continue;       // ignore zombies on different platforms
+          const dist = Math.abs(ddx);
+          if (dist > 0 && dist < PERSONAL_SPACE) {
+            // Stronger push when closer; sign keeps you moving away from the other zombie
+            separation += Math.sign(ddx || (Math.random() - 0.5)) * (1 - dist / PERSONAL_SPACE) * 2.6;
+          }
         }
-      }
-      z.vx = dir * z.speed + separation;
+        z.vx = dir * z.speed + separation;
 
-      // Random hops — staggered timers prevent synchronized jumping
-      if (z.jumpTimer > 0) z.jumpTimer--;
-      if (z.jumpTimer <= 0 && z.onGround) {
-        z.vy = z.type === 'big' ? -(8 + Math.random() * 3) : -(5 + Math.random() * 3);
-        z.jumpTimer = 80 + Math.floor(Math.random() * 140);
-      }
+        // Random hops — staggered timers prevent synchronized jumping
+        if (z.jumpTimer > 0) z.jumpTimer--;
+        if (z.jumpTimer <= 0 && z.onGround) {
+          z.vy = z.type === 'big' ? -(8 + Math.random() * 3) : -(5 + Math.random() * 3);
+          z.jumpTimer = 80 + Math.floor(Math.random() * 140);
+        }
 
-      // If the separation force is overcoming forward intent, the zombie is being
-      // pushed back — show walk anim instead of run so the back-up reads visually.
-      const beingPushedBack = Math.sign(separation) === -Math.sign(dir) && Math.abs(separation) > z.speed * 0.8;
+        // If the separation force is overcoming forward intent, the zombie is being
+        // pushed back — show walk anim instead of run so the back-up reads visually.
+        const beingPushedBack = Math.sign(separation) === -Math.sign(dir) && Math.abs(separation) > z.speed * 0.8;
 
-      // Sprite state machine (non-gunner)
-      if (z.state !== 'attack') {
-        z.state = beingPushedBack ? 'walk' : (dxAbs < 200 ? 'run' : 'walk');
-      }
-      z.stateTimer++;
-      const animCfg = ZS.anim[z.state] || ZS.anim.walk;
-      if (z.stateTimer >= animCfg.speed) {
-        z.stateTimer = 0;
-        z.stateFrame++;
-        if (z.state === 'attack' && z.stateFrame >= animCfg.frames) {
-          z.state = 'walk';
+        // Sprite state machine (non-gunner)
+        if (z.state !== 'attack') {
+          z.state = beingPushedBack ? 'walk' : (dxAbs < 200 ? 'run' : 'walk');
+        }
+        z.stateTimer++;
+        const animCfg = ZS.anim[z.state] || ZS.anim.walk;
+        if (z.stateTimer >= animCfg.speed) {
+          z.stateTimer = 0;
+          z.stateFrame++;
+          if (z.state === 'attack' && z.stateFrame >= animCfg.frames) {
+            z.state = 'walk';
+            z.stateFrame = 0;
+          } else {
+            z.stateFrame %= animCfg.frames;
+          }
+        }
+
+        z.attackCooldown--;
+        if (dxAbs < 30 && Math.abs(player.y - z.y) < 60 && z.attackCooldown <= 0) {
+          hurtPlayer(z.type === 'big' ? 15 : 8);
+          z.attackCooldown = 60;
+          z.state = 'attack';
           z.stateFrame = 0;
-        } else {
-          z.stateFrame %= animCfg.frames;
+          z.stateTimer = 0;
+          // Jump backward after striking
+          z.vy = z.type === 'big' ? -(8 + Math.random() * 3) : -(6 + Math.random() * 3);
+          z.retreatTimer = 55;
         }
-      }
-
-      z.attackCooldown--;
-      if (dxAbs < 30 && Math.abs(player.y - z.y) < 60 && z.attackCooldown <= 0) {
-        hurtPlayer(z.type === 'big' ? 15 : 8);
-        z.attackCooldown = 60;
-        z.state = 'attack';
-        z.stateFrame = 0;
-        z.stateTimer = 0;
       }
     }
 
