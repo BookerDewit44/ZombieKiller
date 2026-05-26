@@ -14,8 +14,13 @@ canvas.height = 500;
 // touch flags) and was blocking click-to-shoot for desktop users.
 const lowQuality = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 if (lowQuality) document.body.classList.add('is-mobile');
-// Full visual fidelity on mobile too — the per-shot audio fix removed the
-// real bottleneck, so the shadow/glow + atmosphere effects can come back.
+// Mobile: suppress only the shadow/glow effects — they're the single heaviest GPU
+// cost on phones (applied per particle, bullet, zombie, etc., across 60+ call sites).
+// Atmosphere, vignette, gradients, platform decorations etc. all stay on for the full look.
+if (lowQuality) {
+  Object.defineProperty(ctx, 'shadowBlur',  { set() {}, get() { return 0; }, configurable: true });
+  Object.defineProperty(ctx, 'shadowColor', { set() {}, get() { return 'transparent'; }, configurable: true });
+}
 
 // Block the long-press "copy image" / "save image" callout on mobile.
 // Apply at document level (capture phase) so it stops the gesture before any
