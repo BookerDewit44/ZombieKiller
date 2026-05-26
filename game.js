@@ -422,15 +422,15 @@ const HIDDEN_LEVEL_CONFIG = {
 // ── Per-level mega boss tuning ────────────────────────────────
 const BOSS_CONFIGS = [
   // L1 — slow, telegraphed, no spit.  Let the player figure out the pounce pattern.
-  { hp: 500,  w: 80,  h: 190, speed: 1.8, pounceVx: 8,  pounceVy: -8,  retreatVx: 7,  meleeDmg: 12, attackDelayMin: 280, attackDelayRand: 200, lungeStart: 85, spitEnabled: false, spitOrbs: 0, spitCooldownBase: 9999, prefMin: 200, prefMax: 450, hopVy: -5.0 },
+  { hp: 700,  w: 80,  h: 190, speed: 1.8, pounceVx: 8,  pounceVy: -8,  retreatVx: 7,  meleeDmg: 12, attackDelayMin: 280, attackDelayRand: 200, lungeStart: 85, spitEnabled: false, spitOrbs: 0, spitCooldownBase: 9999, prefMin: 200, prefMax: 450, hopVy: -5.0 },
   // L2 — faster, spit unlocked (2 orbs).
-  { hp: 900,  w: 88,  h: 210, speed: 2.3, pounceVx: 10, pounceVy: -10, retreatVx: 8,  meleeDmg: 18, attackDelayMin: 220, attackDelayRand: 160, lungeStart: 80, spitEnabled: true,  spitOrbs: 2, spitCooldownBase: 150, prefMin: 220, prefMax: 420, hopVy: -6.0 },
+  { hp: 1250, w: 88,  h: 210, speed: 2.3, pounceVx: 10, pounceVy: -10, retreatVx: 8,  meleeDmg: 18, attackDelayMin: 220, attackDelayRand: 160, lungeStart: 80, spitEnabled: true,  spitOrbs: 2, spitCooldownBase: 150, prefMin: 220, prefMax: 420, hopVy: -6.0 },
   // L3 — aggressive, 3-orb spread spit.
-  { hp: 1300, w: 95,  h: 225, speed: 2.8, pounceVx: 12, pounceVy: -11, retreatVx: 10, meleeDmg: 25, attackDelayMin: 160, attackDelayRand: 120, lungeStart: 75, spitEnabled: true,  spitOrbs: 3, spitCooldownBase: 120, prefMin: 240, prefMax: 400, hopVy: -6.5 },
+  { hp: 1800, w: 95,  h: 225, speed: 2.8, pounceVx: 12, pounceVy: -11, retreatVx: 10, meleeDmg: 25, attackDelayMin: 160, attackDelayRand: 120, lungeStart: 75, spitEnabled: true,  spitOrbs: 3, spitCooldownBase: 120, prefMin: 240, prefMax: 400, hopVy: -6.5 },
   // L4 — relentless, tight range, 4-orb fan.
-  { hp: 1800, w: 102, h: 240, speed: 3.3, pounceVx: 13, pounceVy: -12, retreatVx: 11, meleeDmg: 32, attackDelayMin: 110, attackDelayRand: 100, lungeStart: 70, spitEnabled: true,  spitOrbs: 4, spitCooldownBase:  95, prefMin: 200, prefMax: 380, hopVy: -7.0 },
+  { hp: 2500, w: 102, h: 240, speed: 3.3, pounceVx: 13, pounceVy: -12, retreatVx: 11, meleeDmg: 32, attackDelayMin: 110, attackDelayRand: 100, lungeStart: 70, spitEnabled: true,  spitOrbs: 4, spitCooldownBase:  95, prefMin: 200, prefMax: 380, hopVy: -7.0 },
   // L5 — nightmare.  5-orb wall, short attack pause, huge HP.
-  { hp: 2600, w: 112, h: 260, speed: 4.0, pounceVx: 15, pounceVy: -13, retreatVx: 13, meleeDmg: 40, attackDelayMin:  70, attackDelayRand:  80, lungeStart: 65, spitEnabled: true,  spitOrbs: 5, spitCooldownBase:  75, prefMin: 180, prefMax: 360, hopVy: -7.5 },
+  { hp: 3600, w: 112, h: 260, speed: 4.0, pounceVx: 15, pounceVy: -13, retreatVx: 13, meleeDmg: 40, attackDelayMin:  70, attackDelayRand:  80, lungeStart: 65, spitEnabled: true,  spitOrbs: 5, spitCooldownBase:  75, prefMin: 180, prefMax: 360, hopVy: -7.5 },
 ];
 
 const GROUND_Y = 400;
@@ -486,7 +486,7 @@ const WEAPONS = {
   m60:    { fireRate: 5, damage: 34, bulletSpeed: 16, spread: 0.09, color: '#ff9933', flash: '#ff6600', name: 'M60',    auto: true  },
   rocket: { fireRate: 55, damage: 220, bulletSpeed: 6,  spread: 0,    color: '#ff5500', flash: '#ff3300', name: 'RPG',    auto: false },
 };
-const HEAVY_AMMO_ON_PICKUP = { m16: 60, m60: 100, rocket: 5 };
+const HEAVY_AMMO_ON_PICKUP = { m16: 150, m60: 220, rocket: 5 };
 const HEAVY_AMMO_MAX = 200;
 function characterWeapon() { return selectedChar === 'viper' ? 'm60' : 'm16'; }
 
@@ -552,7 +552,8 @@ function createZombie(x, speed) {
   const isGunner = !isBoss && Math.random() < 0.28; // ~28% of non-boss zombies are gunners
   const w  = isBoss ? 52 : 32;
   const h  = isBoss ? 130 : 85;
-  const hp = isBoss ? 200 + level * 50 : 30 + level * 10;
+  // Boss "big" zombie scales harder per level; regular zombies gradually toughen too.
+  const hp = isBoss ? 280 + level * 80 : 35 + level * 22;
   return {
     x, y: GROUND_Y,   // starts at ground surface; rises up to GROUND_Y - h
     w, h,
@@ -903,6 +904,9 @@ function createExplosion(x, y, radius) {
 
 // ── Damage ───────────────────────────────────────────────────
 function damageZombie(z, amount, knockX = 0) {
+  // Bosses are invulnerable while still rising up from the ground — gives the
+  // dramatic spawn animation time to play instead of letting players nuke them at 0%.
+  if (z.rising && (z.type === 'mega' || z.type === 'charBoss' || z.type === 'big')) return;
   z.hp -= amount;
   if (knockX) z.vx = knockX;
   bloodSplatters.push({ x: z.x + z.w / 2, y: z.y + z.h / 3, life: 40 });
@@ -921,9 +925,9 @@ function damageZombie(z, amount, knockX = 0) {
     score += z.type === 'mega' ? 2000 : z.type === 'charBoss' ? 1500 : z.type === 'big' ? 500 : 100;
     updateScoreUI();
     if (Math.random() < 0.3) spawnAmmoPickup(z.x, z.y + z.h - 14);
-    if (!healthDroppedThisLevel && z.type !== 'mega' && z.type !== 'charBoss' && Math.random() < 0.25) {
-      ammoPickups.push({ x: z.x, y: z.y + z.h - 14, w: 20, h: 14, anim: 0, isHealth: true });
-      healthDroppedThisLevel = true;
+    // Health hearts drop more often now — multiple per level, smaller chance per kill.
+    if (z.type !== 'mega' && z.type !== 'charBoss' && Math.random() < 0.12) {
+      ammoPickups.push({ x: z.x, y: z.y + z.h - 14, w: 20, h: 18, anim: 0, isHealth: true });
     }
     if (z.type === 'charBoss') {
       spawnWeaponPickup(z.x + z.w / 2 - 22, z.y + z.h - 16, 'rocket');
@@ -2053,8 +2057,16 @@ function update() {
         player.hp = Math.min(player.maxHp, player.hp + 30);
         updateHealthUI();
       } else {
-        player.ammo = Math.min(player.ammo + 15, 99);
-        updateAmmoUI();
+        // Ammo box refills the currently equipped firearm. Pistol is unlimited so
+        // pistol-equipped pickups give a small score bonus instead of being wasted.
+        if (player.weapon === 'pistol') {
+          score += 25;
+          updateScoreUI();
+        } else {
+          const refill = player.weapon === 'rocket' ? 1 : player.weapon === 'm60' ? 60 : 40;
+          player.heavyAmmo = Math.min(player.heavyAmmo + refill, HEAVY_AMMO_MAX);
+          updateAmmoUI();
+        }
       }
       ammoPickups.splice(i, 1);
       continue;
@@ -3545,8 +3557,11 @@ function drawZombie(z) {
   // Dead dogs always render on the main ground regardless of physics position
   const drawY = (z.dead && z.type === 'dog') ? GROUND_Y : z.y + z.h;
 
-  // Moving: face the direction of travel. Standing still (gunner sweet spot): face the player.
-  const dir = z.vx !== 0 ? (z.vx > 0 ? 1 : -1) : (player.x >= z.x ? 1 : -1);
+  // Moving: face the direction of travel. Bosses always face the player so their
+  // retreat-pounce loop doesn't show them running away with their back turned.
+  const isBossType = z.type === 'mega' || z.type === 'charBoss' || z.type === 'big';
+  const dir = isBossType ? (player.x >= z.x ? 1 : -1)
+            : (z.vx !== 0 ? (z.vx > 0 ? 1 : -1) : (player.x >= z.x ? 1 : -1));
 
   const _noShadow = z.type === 'dog' || (z.type === 'mega' && z.bossLevel >= 2);
   if (!z.dead && !_noShadow) drawShadow(z.x + z.w / 2, z.y + z.h + 2, z.w * 1.8);
@@ -4161,22 +4176,36 @@ function drawHealthOrbs() {
     const sx = a.x - cameraX + a.w / 2;
     const hover = Math.sin(a.anim) * 4;
     const y = a.y + hover;
+    const pulse = 0.85 + Math.sin(a.anim * 2) * 0.15;
+
     ctx.save();
-    ctx.shadowColor = '#ff4488';
-    ctx.shadowBlur = 16;
-    const g = ctx.createRadialGradient(sx, y, 0, sx, y, 11);
-    g.addColorStop(0, '#ffaacc');
-    g.addColorStop(0.5, '#ff2266');
-    g.addColorStop(1, '#880033');
-    ctx.fillStyle = g;
+    // Outer pulsing red glow halo
+    ctx.shadowColor = '#ff1133';
+    ctx.shadowBlur = 22 * pulse;
+
+    // Heart shape — two lobes on top, V-point at bottom. Path-driven so the
+    // outline is a real heart rather than a circle with a notch.
+    const R = 10; // base size
+    ctx.fillStyle = '#ff0033';
     ctx.beginPath();
-    ctx.arc(sx, y, 9, 0, Math.PI * 2);
+    ctx.moveTo(sx, y + R * 0.85);
+    ctx.bezierCurveTo(sx - R * 1.4, y - R * 0.1, sx - R * 0.55, y - R * 0.95, sx, y - R * 0.25);
+    ctx.bezierCurveTo(sx + R * 0.55, y - R * 0.95, sx + R * 1.4, y - R * 0.1, sx, y + R * 0.85);
+    ctx.closePath();
     ctx.fill();
+
+    // Bright red rim for definition
     ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.strokeStyle = '#ff4466';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // White specular highlight on the upper-left lobe
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.beginPath();
-    ctx.arc(sx - 3, y - 3, 3, 0, Math.PI * 2);
+    ctx.ellipse(sx - R * 0.45, y - R * 0.4, R * 0.22, R * 0.16, -0.4, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.restore();
   }
 }
