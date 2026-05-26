@@ -3567,13 +3567,11 @@ function drawZombie(z) {
 
   ctx.save();
 
-  // While rising, clip so only the part above GROUND_Y is visible. The clip
-  // needs to be wide enough to contain the full sprite (bosses are 80-112px hitboxes
-  // but their drawn sprites — especially with weapons extended — can reach far wider).
+  // While rising, clip only vertically so the part below ground is hidden but
+  // the sprite's full horizontal extent (weapons, claws, wings, etc.) is visible.
   if (z.rising) {
-    const clipHalf = Math.max(140, z.w * 2.2);
     ctx.beginPath();
-    ctx.rect(screenX + z.w / 2 - clipHalf, 0, clipHalf * 2, GROUND_Y);
+    ctx.rect(0, 0, canvas.width, GROUND_Y);
     ctx.clip();
   }
 
@@ -3609,7 +3607,8 @@ function drawZombie(z) {
   // Demon Boss sprite (level 5)
   if (z.type === 'mega' && z.bossLevel === 5) {
     let bImg;
-    if (z.dead)                                     bImg = demonBossSprites.dead;
+    if (z.rising)                                    bImg = demonBossSprites.idle;
+    else if (z.dead)                                 bImg = demonBossSprites.dead;
     else if (!z.onGround || z.megaState === 'lunge') bImg = demonBossSprites.attack;
     else if (z.state === 'walk' || z.state === 'run') bImg = demonBossSprites.walk[z.demonWalkFrame || 0];
     else                                              bImg = demonBossSprites.idle;
@@ -3641,7 +3640,8 @@ function drawZombie(z) {
   // Big Boss Zombie sprite (levels 2+)
   if (z.type === 'mega' && z.bossLevel >= 2) {
     let bImg;
-    if (z.dead)              bImg = bigBossSprites.dead;
+    if (z.rising)            bImg = bigBossSprites.appear;
+    else if (z.dead)         bImg = bigBossSprites.dead;
     else if (!z.onGround)    bImg = bigBossSprites.jump;
     else if (z.state === 'attack') bImg = bigBossSprites.appear;
     else                     bImg = bigBossSprites.walk;
@@ -4019,6 +4019,7 @@ function drawBlood() {
 
 function drawAmmoPickups() {
   for (const a of ammoPickups) {
+    if (a.isHealth) continue; // health hearts are drawn by drawHealthOrbs
     const sx = a.x - cameraX;
     const hover = Math.sin(a.anim) * 3;
     const y = a.y + hover;
@@ -4509,6 +4510,7 @@ function draw() {
   drawFog();
   drawBlood();
   drawAmmoPickups();
+  drawHealthOrbs();
   drawWeaponPickups();
   drawBullets();
   for (const z of zombies) drawZombie(z);
