@@ -166,9 +166,32 @@ function initAudioCtx() {
   }
 }
 
+// Looping MG fire sample for M16/M60 — one playing audio element instead of one
+// per-bullet trigger. Eliminates the mobile lag spike caused by rapid play()s.
+const sfxMGLoop = new Audio('audio/machine-gunfire-45754.mp3');
+sfxMGLoop.loop = true;
+sfxMGLoop.volume = 0.55;
+function startMGLoop() {
+  if (sfxMGLoop.paused) {
+    try { sfxMGLoop.currentTime = 0; } catch (_) {}
+    sfxMGLoop.play().catch(() => {});
+  }
+}
+function stopMGLoop() {
+  if (!sfxMGLoop.paused) {
+    sfxMGLoop.pause();
+    try { sfxMGLoop.currentTime = 0; } catch (_) {}
+  }
+}
+
 // Light throttle to avoid stacking too many overlapping samples per second.
 let _lastShootSfxTime = 0;
 function playShootSfx(weapon) {
+  // Full-auto weapons use the looping sample instead of a per-bullet sound.
+  if (weapon === 'm16' || weapon === 'm60') {
+    startMGLoop();
+    return;
+  }
   if (lowQuality) {
     const now = performance.now();
     if (now - _lastShootSfxTime < 70 && weapon !== 'rocket') return;
@@ -915,12 +938,12 @@ function damageZombie(z, amount, knockX = 0) {
       spawnAmmoPickup(z.x + z.w / 2 + 20, z.y + z.h - 14);
       bossRoundActive = false;
     } else if (z.type === 'big') {
-      const drop = level >= 2 ? 'rocket' : characterWeapon();
+      const drop = level >= 3 && Math.random() < 0.35 ? 'rocket' : characterWeapon();
       spawnWeaponPickup(z.x + z.w / 2 - 22, z.y + z.h - 16, drop);
     } else if (z.type === 'gunner') {
       spawnWeaponPickup(z.x + z.w / 2 - 22, z.y + z.h - 16, characterWeapon());
     } else if (Math.random() < 0.05) {
-      const drop = level >= 3 && Math.random() < 0.25 ? 'rocket' : characterWeapon();
+      const drop = level >= 4 && Math.random() < 0.08 ? 'rocket' : characterWeapon();
       spawnWeaponPickup(z.x + z.w / 2 - 22, z.y + z.h - 16, drop);
     }
     particles.push(...createSparks(z.x + z.w / 2, z.y + z.h / 2, '#880000', 8));
@@ -1330,6 +1353,10 @@ function update() {
   // Shoot timer
   if (player.shootTimer > 0) player.shootTimer--;
   else { player.isShooting = false; player.isMelee = false; }
+  // Stop the looping MG-fire sample as soon as the player stops firing or switches off a full-auto.
+  if (!player.isShooting || (player.weapon !== 'm16' && player.weapon !== 'm60')) {
+    stopMGLoop();
+  }
 
   // Animation
   player.animTimer++;
