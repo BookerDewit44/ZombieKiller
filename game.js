@@ -792,16 +792,11 @@ function shoot() {
     player.weapon = 'pistol';
   }
   const isHeavy = player.weapon !== 'pistol';
-  // Ziggy falls back to melee when pistol is empty; Viper has unlimited pistol ammo.
-  if (!isHeavy && selectedChar !== 'viper' && player.ammo <= 0) {
-    meleeAttack();
-    return;
-  }
+  // Both characters now have unlimited pistol ammo.
   const w = WEAPONS[player.weapon];
   if (frameCount - lastShot < w.fireRate) return;
   lastShot = frameCount;
   if (isHeavy) player.heavyAmmo--;
-  else if (selectedChar !== 'viper') player.ammo--;
   player.isShooting = true;
   player.shootTimer = 10;
   playShootSfx(player.weapon);
@@ -1068,7 +1063,8 @@ function updateAmmoUI() {
     const w = WEAPONS[player.weapon];
     el.textContent = `${w.name} ${player.heavyAmmo}`;
   } else {
-    el.textContent = selectedChar === 'viper' ? '∞' : player.ammo;
+    // Both characters have unlimited pistol ammo now.
+    el.textContent = '∞';
   }
 }
 
