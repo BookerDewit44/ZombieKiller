@@ -49,8 +49,9 @@ sfxShoot.volume = 0.6;
 const sfxM60 = new Audio('audio/mg42-sfx-80169.mp3');
 sfxM60.volume = 0.55;
 
-const sfxM16 = new Audio('audio/freesound_community-assaultrifle2-47258.mp3');
-sfxM16.volume = 0.6;
+// (sfxM16 retained as alias so any legacy reference keeps working — same file as M60 loop.)
+const sfxM16 = new Audio('audio/machine-gunfire-45754.mp3');
+sfxM16.volume = 0.55;
 
 const sfxGameOver = new Audio('audio/game-over-deep-male-voice-clip-352695.mp3');
 sfxGameOver.volume = 0.85;
@@ -128,7 +129,7 @@ function _makePool(src, size, volume) {
 const _shootPools = {
   pistol: _makePool('audio/pistol-shot-233473.mp3', 6, 0.6),
   m60:    _makePool('audio/mg42-sfx-80169.mp3', 6, 0.55),
-  m16:    _makePool('audio/freesound_community-assaultrifle2-47258.mp3', 8, 0.6),
+  m16:    _makePool('audio/machine-gunfire-45754.mp3', 8, 0.55),
   rocket: _makePool('audio/futuristic-zoom-whoosh-2-183978.mp3', 3, 0.7),
 };
 // Web Audio API for gun SFX — HTMLAudioElement.play() is one of the slowest things
@@ -140,7 +141,7 @@ const _gunBuffers = {}; // { pistol: { buffer, volume }, ... }
 const _gunSrcs = [
   ['pistol', 'audio/pistol-shot-233473.mp3', 0.6],
   ['m60',    'audio/mg42-sfx-80169.mp3',    0.55],
-  ['m16',    'audio/freesound_community-assaultrifle2-47258.mp3', 0.6],
+  ['m16',    'audio/machine-gunfire-45754.mp3', 0.55],
   ['rocket', 'audio/futuristic-zoom-whoosh-2-183978.mp3', 0.7],
 ];
 function initAudioCtx() {
