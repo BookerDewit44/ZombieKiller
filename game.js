@@ -22,6 +22,11 @@ if (lowQuality) {
   Object.defineProperty(ctx, 'shadowColor', { set() {}, get() { return 'transparent'; }, configurable: true });
 }
 
+// Per-platform machine-gun audio: a punchier sample for desktop, mobile-optimized variant for phones.
+const MG_FIRE_AUDIO = lowQuality
+  ? 'audio/mobile/machine-gunfire-45754.mp3'
+  : 'audio/machine-gunfire-1.mp3';
+
 // Block the long-press "copy image" / "save image" callout on mobile.
 // Apply at document level (capture phase) so it stops the gesture before any
 // child element can show a system popup.
@@ -55,7 +60,7 @@ const sfxM60 = new Audio('audio/mg42-sfx-80169.mp3');
 sfxM60.volume = 0.55;
 
 // (sfxM16 retained as alias so any legacy reference keeps working — same file as M60 loop.)
-const sfxM16 = new Audio('audio/machine-gunfire-45754.mp3');
+const sfxM16 = new Audio(MG_FIRE_AUDIO);
 sfxM16.volume = 0.55;
 
 const sfxGameOver = new Audio('audio/game-over-deep-male-voice-clip-352695.mp3');
@@ -134,7 +139,7 @@ function _makePool(src, size, volume) {
 const _shootPools = {
   pistol: _makePool('audio/pistol-shot-233473.mp3', 6, 0.6),
   m60:    _makePool('audio/mg42-sfx-80169.mp3', 6, 0.55),
-  m16:    _makePool('audio/machine-gunfire-45754.mp3', 8, 0.55),
+  m16:    _makePool(MG_FIRE_AUDIO, 8, 0.55),
   rocket: _makePool('audio/futuristic-zoom-whoosh-2-183978.mp3', 3, 0.7),
 };
 // Web Audio API for gun SFX — HTMLAudioElement.play() is one of the slowest things
@@ -146,7 +151,7 @@ const _gunBuffers = {}; // { pistol: { buffer, volume }, ... }
 const _gunSrcs = [
   ['pistol', 'audio/pistol-shot-233473.mp3', 0.6],
   ['m60',    'audio/mg42-sfx-80169.mp3',    0.55],
-  ['m16',    'audio/machine-gunfire-45754.mp3', 0.55],
+  ['m16',    MG_FIRE_AUDIO, 0.55],
   ['rocket', 'audio/futuristic-zoom-whoosh-2-183978.mp3', 0.7],
 ];
 function initAudioCtx() {
@@ -168,7 +173,7 @@ function initAudioCtx() {
 
 // Looping MG fire sample for M16/M60 — one playing audio element instead of one
 // per-bullet trigger. Eliminates the mobile lag spike caused by rapid play()s.
-const sfxMGLoop = new Audio('audio/machine-gunfire-45754.mp3');
+const sfxMGLoop = new Audio(MG_FIRE_AUDIO);
 sfxMGLoop.loop = true;
 sfxMGLoop.volume = 0.55;
 function startMGLoop() {
