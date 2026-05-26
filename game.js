@@ -99,6 +99,7 @@ let zombieSfxIndex = 0;
 function togglePause() {
   if (gameState === 'playing') {
     gameState = 'paused';
+    stopMGLoop();
     PLAYLIST.forEach(a => a.pause());
     sfxBonusChant.pause();
   } else if (gameState === 'paused') {
@@ -963,6 +964,7 @@ function hurtPlayer(amount) {
 function triggerDeath() {
   if (gameState === 'dying' || gameState === 'dead') return;
   gameState = 'dying';
+  stopMGLoop();
   player.deathTimer = 100;     // long enough for Ziggy (64 ticks) and Viper (90 ticks) anims to finish
   // Reset anim state so the die animation plays from frame 0
   playerAnim.frame = 0;
