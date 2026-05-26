@@ -422,15 +422,15 @@ const HIDDEN_LEVEL_CONFIG = {
 // ── Per-level mega boss tuning ────────────────────────────────
 const BOSS_CONFIGS = [
   // L1 — slow, telegraphed, no spit.  Let the player figure out the pounce pattern.
-  { hp: 700,  w: 80,  h: 190, speed: 1.8, pounceVx: 8,  pounceVy: -8,  retreatVx: 7,  meleeDmg: 12, attackDelayMin: 280, attackDelayRand: 200, lungeStart: 85, spitEnabled: false, spitOrbs: 0, spitCooldownBase: 9999, prefMin: 200, prefMax: 450, hopVy: -5.0 },
+  { hp: 700,  w: 80,  h: 190, speed: 1.8, pounceVx: 8,  pounceVy: -8,  retreatVx: 7,  meleeDmg: 12, attackDelayMin: 140, attackDelayRand: 100, lungeStart: 85, spitEnabled: false, spitOrbs: 0, spitCooldownBase: 9999, prefMin: 200, prefMax: 450, hopVy: -5.0 },
   // L2 — faster, spit unlocked (2 orbs).
-  { hp: 1250, w: 88,  h: 210, speed: 2.3, pounceVx: 10, pounceVy: -10, retreatVx: 8,  meleeDmg: 18, attackDelayMin: 220, attackDelayRand: 160, lungeStart: 80, spitEnabled: true,  spitOrbs: 2, spitCooldownBase: 150, prefMin: 220, prefMax: 420, hopVy: -6.0 },
+  { hp: 1250, w: 88,  h: 210, speed: 2.3, pounceVx: 10, pounceVy: -10, retreatVx: 8,  meleeDmg: 18, attackDelayMin: 110, attackDelayRand:  80, lungeStart: 80, spitEnabled: true,  spitOrbs: 2, spitCooldownBase: 150, prefMin: 220, prefMax: 420, hopVy: -6.0 },
   // L3 — aggressive, 3-orb spread spit.
-  { hp: 1800, w: 95,  h: 225, speed: 2.8, pounceVx: 12, pounceVy: -11, retreatVx: 10, meleeDmg: 25, attackDelayMin: 160, attackDelayRand: 120, lungeStart: 75, spitEnabled: true,  spitOrbs: 3, spitCooldownBase: 120, prefMin: 240, prefMax: 400, hopVy: -6.5 },
+  { hp: 1800, w: 95,  h: 225, speed: 2.8, pounceVx: 12, pounceVy: -11, retreatVx: 10, meleeDmg: 25, attackDelayMin:  80, attackDelayRand:  60, lungeStart: 75, spitEnabled: true,  spitOrbs: 3, spitCooldownBase: 120, prefMin: 240, prefMax: 400, hopVy: -6.5 },
   // L4 — relentless, tight range, 4-orb fan.
-  { hp: 2500, w: 102, h: 240, speed: 3.3, pounceVx: 13, pounceVy: -12, retreatVx: 11, meleeDmg: 32, attackDelayMin: 110, attackDelayRand: 100, lungeStart: 70, spitEnabled: true,  spitOrbs: 4, spitCooldownBase:  95, prefMin: 200, prefMax: 380, hopVy: -7.0 },
+  { hp: 2500, w: 102, h: 240, speed: 3.3, pounceVx: 13, pounceVy: -12, retreatVx: 11, meleeDmg: 32, attackDelayMin:  55, attackDelayRand:  50, lungeStart: 70, spitEnabled: true,  spitOrbs: 4, spitCooldownBase:  95, prefMin: 200, prefMax: 380, hopVy: -7.0 },
   // L5 — nightmare.  5-orb wall, short attack pause, huge HP.
-  { hp: 3600, w: 112, h: 260, speed: 4.0, pounceVx: 15, pounceVy: -13, retreatVx: 13, meleeDmg: 40, attackDelayMin:  70, attackDelayRand:  80, lungeStart: 65, spitEnabled: true,  spitOrbs: 5, spitCooldownBase:  75, prefMin: 180, prefMax: 360, hopVy: -7.5 },
+  { hp: 3600, w: 112, h: 260, speed: 4.0, pounceVx: 15, pounceVy: -13, retreatVx: 13, meleeDmg: 40, attackDelayMin:  35, attackDelayRand:  40, lungeStart: 65, spitEnabled: true,  spitOrbs: 5, spitCooldownBase:  75, prefMin: 180, prefMax: 360, hopVy: -7.5 },
 ];
 
 const GROUND_Y = 400;
