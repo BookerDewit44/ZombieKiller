@@ -1704,8 +1704,8 @@ function update() {
       }
     } else if (z.type === 'charBoss') {
       if (z.megaState === 'evade') {
-        if (dxAbs < z.prefMin)       z.vx = -dir * z.speed * 1.5;
-        else if (dxAbs > z.prefMax)  z.vx =  dir * z.speed * 0.8;
+        // Hold ground when close (don't back away); slowly close when too far.
+        if (dxAbs > z.prefMax)       z.vx =  dir * z.speed * 0.85;
         else                          z.vx *= 0.82;
         z.hopTimer--;
         if (z.hopTimer <= 0 && z.onGround) { z.vy = z.hopVy; z.hopTimer = 60 + Math.floor(Math.random() * 90); }
@@ -1765,10 +1765,9 @@ function update() {
 
     } else if (z.type === 'mega') {
       if (z.megaState === 'evade') {
-        if (dxAbs < z.prefMin) {
-          z.vx = -dir * z.speed * 1.6;
-        } else if (dxAbs > z.prefMax) {
-          z.vx = dir * z.speed * 0.7;
+        // Hold ground when close (don't back away); slowly close when too far.
+        if (dxAbs > z.prefMax) {
+          z.vx = dir * z.speed * 0.8;
         } else {
           z.vx *= 0.82;
         }
@@ -3568,10 +3567,13 @@ function drawZombie(z) {
 
   ctx.save();
 
-  // While rising, clip so only the part above GROUND_Y is visible
+  // While rising, clip so only the part above GROUND_Y is visible. The clip
+  // needs to be wide enough to contain the full sprite (bosses are 80-112px hitboxes
+  // but their drawn sprites — especially with weapons extended — can reach far wider).
   if (z.rising) {
+    const clipHalf = Math.max(140, z.w * 2.2);
     ctx.beginPath();
-    ctx.rect(screenX - 80, 0, 160, GROUND_Y);
+    ctx.rect(screenX + z.w / 2 - clipHalf, 0, clipHalf * 2, GROUND_Y);
     ctx.clip();
   }
 
