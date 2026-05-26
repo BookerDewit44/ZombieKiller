@@ -14,15 +14,8 @@ canvas.height = 500;
 // touch flags) and was blocking click-to-shoot for desktop users.
 const lowQuality = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 if (lowQuality) document.body.classList.add('is-mobile');
-if (lowQuality) {
-  // Suppress all shadow/glow on the instance — every ctx.shadowBlur = X call
-  // in the codebase becomes a no-op without touching 60+ call sites.
-  Object.defineProperty(ctx, 'shadowBlur',  { set() {}, get() { return 0; }, configurable: true });
-  Object.defineProperty(ctx, 'shadowColor', { set() {}, get() { return 'transparent'; }, configurable: true });
-  // imageSmoothing is set per-draw in some places, but turning it off globally
-  // skips a subpixel-interpolation step on every drawImage call.
-  ctx.imageSmoothingEnabled = false;
-}
+// Full visual fidelity on mobile too — the per-shot audio fix removed the
+// real bottleneck, so the shadow/glow + atmosphere effects can come back.
 
 // Block the long-press "copy image" / "save image" callout on mobile.
 // Apply at document level (capture phase) so it stops the gesture before any
@@ -532,8 +525,7 @@ function spawnZombies() {
   dogEventState = 'idle'; dogFogAlpha = 0; pendingDogEvent = false; dogSpawnQueue = []; healthDroppedThisLevel = false; healthDroppedThisLevel = false; dogSpawnQueue = [];
   const cfg = LEVELS[level - 1];
   // On mobile, scale the horde down so the CPU/GPU can keep up at 60fps.
-  const zombieCount = lowQuality ? Math.max(4, Math.floor(cfg.zombies * 0.55)) : cfg.zombies;
-  for (let i = 0; i < zombieCount; i++) {
+  for (let i = 0; i < cfg.zombies; i++) {
     spawnQueue.push({ x: randomSpawnX(), speed: cfg.speed + Math.random() * 0.5 });
   }
   // Release the first one immediately so the screen isn't empty
@@ -682,8 +674,7 @@ function enterHiddenLevel() {
   particles = []; bloodSplatters = []; slimeProjectiles = [];
   ammoPickups = []; weaponPickups = [];
   const cfg = HIDDEN_LEVEL_CONFIG;
-  const hiddenCount = lowQuality ? Math.max(4, Math.floor(cfg.zombies * 0.55)) : cfg.zombies;
-  for (let i = 0; i < hiddenCount; i++) {
+  for (let i = 0; i < cfg.zombies; i++) {
     spawnQueue.push({ x: randomSpawnX(), speed: cfg.speed + Math.random() * 0.5, hpMult: cfg.zombieHpMult });
   }
   if (spawnQueue.length > 0) {
@@ -1001,8 +992,7 @@ function respawnOrGameOver() {
 function createSparks(x, y, color, count) {
   // Halve particle count on mobile so the per-frame update loop and draw don't blow up
   // during heavy combat (muzzle flash at 20 rounds/sec + kills + explosions).
-  const n = lowQuality ? Math.max(1, Math.floor(count * 0.5)) : count;
-  return Array.from({ length: n }, () => ({
+  return Array.from({ length: count }, () => ({
     x, y,
     vx: (Math.random() - 0.5) * 8,
     vy: (Math.random() - 0.5) * 8 - 2,
@@ -1558,9 +1548,7 @@ function update() {
         // Build staggered spawn queue — 10-12 dogs, ~1.5-3 s gaps between each
         let _t = 0;
         dogSpawnQueue = [];
-        const _dogCount = lowQuality
-          ? 5 + Math.floor(Math.random() * 2)       // mobile: 5-6
-          : 10 + Math.floor(Math.random() * 3);     // desktop: 10-12
+        const _dogCount = 10 + Math.floor(Math.random() * 3); // 10-12
         for (let _d = 0; _d < _dogCount; _d++) {
           dogSpawnQueue.push({ timer: _t });
           _t += 90 + Math.floor(Math.random() * 90); // 1.5-3 s
@@ -1905,10 +1893,8 @@ function update() {
         if (z.state !== 'attack') z.state = 'walk';
       } else {
         // Separation: don't bunch up. If another zombie is within personal space,
-        // push horizontally away. Skip on mobile — the O(N²) loop tanks framerate
-        // once the horde gets dense.
+        // push horizontally away.
         let separation = 0;
-        if (!lowQuality) {
         const PERSONAL_SPACE = 46;
         const myCx = z.x + z.w / 2;
         for (const other of zombies) {
@@ -1921,7 +1907,6 @@ function update() {
             // Stronger push when closer; sign keeps you moving away from the other zombie
             separation += Math.sign(ddx || (Math.random() - 0.5)) * (1 - dist / PERSONAL_SPACE) * 2.6;
           }
-        }
         }
         z.vx = dir * z.speed + separation;
 
@@ -2181,21 +2166,14 @@ function drawBackground() {
   // Organic atmosphere layered over the static sprite background
   drawAtmosphere(W, GY, frameCount);
 
-  // Cinematic vignette — skip on mobile (full-canvas radial gradient + alpha-blend fill
-  // every frame is one of the heaviest single operations on phone GPUs).
-  if (!lowQuality) {
-    const vg = ctx.createRadialGradient(W/2,canvas.height*0.52,W*0.18,W/2,canvas.height*0.52,W*0.8);
-    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(0.55,'rgba(0,0,0,0.08)'); vg.addColorStop(1,'rgba(0,0,0,0.72)');
-    ctx.fillStyle=vg; ctx.fillRect(0,0,W,canvas.height);
-  }
+  // Cinematic vignette
+  const vg = ctx.createRadialGradient(W/2,canvas.height*0.52,W*0.18,W/2,canvas.height*0.52,W*0.8);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(0.55,'rgba(0,0,0,0.08)'); vg.addColorStop(1,'rgba(0,0,0,0.72)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,canvas.height);
 }
 
 // ── Per-level atmospheric overlays ────────────────────────────
 function drawAtmosphere(W, GY, t) {
-  // Mobile: atmosphere overlays iterate 30-65 particles per frame with createRadialGradient
-  // calls each. Skipping entirely on low-power devices gives a large fps boost — the static
-  // sprite background already conveys the level's mood.
-  if (lowQuality) return;
   switch (level) {
     case 1: drawAtmCity(t, W, GY); break;
     case 2: drawAtmDungeon(t, W, GY); break;
@@ -2431,17 +2409,11 @@ function drawAtmHell(t, W, GY) {
 
 function drawShadow(worldX, baseY, w) {
   const sx = worldX - cameraX;
+  const sg = ctx.createRadialGradient(sx, baseY, 0, sx, baseY, w);
+  sg.addColorStop(0, 'rgba(0,0,0,0.4)');
+  sg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.save();
-  if (lowQuality) {
-    // Skip the per-call radial gradient on mobile — called once per zombie per frame.
-    // A flat semi-transparent ellipse reads the same at a glance.
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-  } else {
-    const sg = ctx.createRadialGradient(sx, baseY, 0, sx, baseY, w);
-    sg.addColorStop(0, 'rgba(0,0,0,0.4)');
-    sg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = sg;
-  }
+  ctx.fillStyle = sg;
   ctx.beginPath();
   ctx.ellipse(sx, baseY, w, w * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -3225,34 +3197,7 @@ function bgHell(t, W, GY) {
 // ── Platforms (level-styled, realistic) ──────────────────────
 // ── Platform tile cache ──────────────────────────────────────
 // Mobile-friendly flat colors per level for the ground floor and elevated platforms.
-const _MOBILE_GROUND_COLOR    = ['#140700','#0b0a18','#040a01','#0d0b05','#160000'];
-const _MOBILE_PLATFORM_COLOR  = ['#2a1505','#1a1428','#0c1a08','#1c1810','#240505'];
-
 function drawPlatforms() {
-  // Mobile fast path: solid fills only, no gradients, no decorative strokes.
-  // Restores the platform silhouettes (which are gameplay-critical) without the
-  // dozens of beginPath/stroke calls per platform per frame that tank framerate.
-  if (lowQuality) {
-    const groundCol   = inHiddenLevel ? '#06081a' : (_MOBILE_GROUND_COLOR[level - 1]   || '#101010');
-    const platformCol = inHiddenLevel ? '#0c1a32' : (_MOBILE_PLATFORM_COLOR[level - 1] || '#202020');
-    for (const p of basePlatforms) {
-      const sx = p.x - cameraX;
-      if (sx + p.w < 0 || sx > canvas.width) continue;
-      if (p.y === GROUND_Y) {
-        if (inHiddenLevel) continue;
-        ctx.fillStyle = groundCol;
-        ctx.fillRect(sx, p.y, p.w, canvas.height - p.y);
-        ctx.fillStyle = 'rgba(255,255,255,0.06)';
-        ctx.fillRect(sx, p.y, p.w, 2);
-      } else {
-        ctx.fillStyle = platformCol;
-        ctx.fillRect(sx, p.y, p.w, p.h);
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.fillRect(sx, p.y, p.w, 1);
-      }
-    }
-    return;
-  }
   for (const p of basePlatforms) {
     const sx = p.x - cameraX;
     if (sx + p.w < 0 || sx > canvas.width) continue;
@@ -3725,28 +3670,6 @@ function drawZombie(z) {
 }
 
 function drawBullets() {
-  // Mobile fast path: flat-color bullets, no gradients/save-restore.
-  if (lowQuality) {
-    for (const b of bullets) {
-      const sx = b.x - cameraX;
-      const dir = b.vx > 0 ? 1 : -1;
-      if (b.isRocket) {
-        ctx.fillStyle = '#cc3300';
-        ctx.fillRect(sx - dir * 16, b.y - 4, 20, 8);
-        ctx.fillStyle = '#ff9900';
-        ctx.fillRect(sx + dir * 4, b.y - 3, 8, 6);
-        ctx.fillStyle = '#ff6600';
-        ctx.fillRect(sx - dir * 26, b.y - 2, 10, 4);
-      } else {
-        const heavy = !!b.heavy;
-        ctx.fillStyle = heavy ? '#ffaa44' : '#ffe066';
-        ctx.fillRect(sx - (heavy ? 14 : 12), b.y - 2, heavy ? 16 : 14, heavy ? 4 : 3);
-        ctx.fillStyle = b.color || '#ffffff';
-        ctx.fillRect(sx - 3, b.y - 2, 6, heavy ? 4 : 3);
-      }
-    }
-    return;
-  }
   for (const b of bullets) {
     const sx = b.x - cameraX;
     const dir = b.vx > 0 ? 1 : -1;
@@ -4026,20 +3949,6 @@ function drawExplosions() {
 }
 
 function drawParticles() {
-  // Mobile fast path: avoid save/restore and shadow per particle. Tiny squares
-  // instead of arcs cuts beginPath/arc/fill overhead. globalAlpha is still set
-  // once per particle to fade them out as they die.
-  if (lowQuality) {
-    for (const p of particles) {
-      const sx = p.x - cameraX;
-      ctx.globalAlpha = Math.min(1, p.life / 40);
-      ctx.fillStyle = p.color;
-      const r = Math.max(1, p.size / 2);
-      ctx.fillRect(sx - r, p.y - r, r * 2, r * 2);
-    }
-    ctx.globalAlpha = 1;
-    return;
-  }
   for (const p of particles) {
     const sx = p.x - cameraX;
     ctx.save();
