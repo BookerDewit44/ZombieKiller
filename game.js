@@ -104,6 +104,7 @@ function togglePause() {
   if (gameState === 'playing') {
     gameState = 'paused';
     stopMGLoop();
+    sfxBossMG.pause();
     PLAYLIST.forEach(a => a.pause());
     sfxBonusChant.pause();
   } else if (gameState === 'paused') {
@@ -1005,6 +1006,7 @@ function triggerDeath() {
   if (gameState === 'dying' || gameState === 'dead') return;
   gameState = 'dying';
   stopMGLoop();
+  sfxBossMG.pause();
   player.deathTimer = 100;     // long enough for Ziggy (64 ticks) and Viper (90 ticks) anims to finish
   // Reset anim state so the die animation plays from frame 0
   playerAnim.frame = 0;
@@ -1409,12 +1411,32 @@ function update() {
   }
 
   // Full-auto weapons fire while the mouse is held; semi-auto (pistol) fires only on click.
-  if (mouseDown && WEAPONS[player.weapon] && WEAPONS[player.weapon].auto) shoot();
+  if (!phoneFrozen && mouseDown && WEAPONS[player.weapon] && WEAPONS[player.weapon].auto) shoot();
 
-  if ((keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && player.onGround) {
+  if (!phoneFrozen && (keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && player.onGround) {
     player.vy = -11;
     sfxJump.currentTime = 0;
     sfxJump.play().catch(() => {});
+  }
+
+  // Phone booth telephone: grab to trigger the announcement; advance to boss when it ends.
+  if (phoneState === 'waiting' && phoneBooth &&
+      player.x < phoneBooth.x + phoneBooth.w && player.x + player.w > phoneBooth.x &&
+      player.y < phoneBooth.y + phoneBooth.h && player.y + player.h > phoneBooth.y) {
+    phoneState = 'ringing';
+    phoneTimer = 900; // fallback (~15s) if the audio 'ended' event never fires
+    try { sfxPhone.currentTime = 0; } catch (_) {}
+    sfxPhone.play().catch(() => {});
+    sfxPhone.addEventListener('ended', onPhoneEnded, { once: true });
+  }
+  if (phoneState === 'ringing') {
+    if (--phoneTimer <= 0) onPhoneEnded();
+  }
+
+  // Stop the boss gunfire loop shortly after the boss stops firing.
+  if (!sfxBossMG.paused && frameCount - bossMGLastShot > 12) {
+    sfxBossMG.pause();
+    try { sfxBossMG.currentTime = 0; } catch (_) {}
   }
 
   applyGravity(player);
@@ -1777,27 +1799,39 @@ function update() {
         if (dxAbs > z.prefMax)       z.vx =  dir * z.speed * 0.85;
         else                          z.vx *= 0.82;
         z.hopTimer--;
-        if (z.hopTimer <= 0 && z.onGround) { z.vy = z.hopVy; z.hopTimer = 60 + Math.floor(Math.random() * 90); }
+        if (z.hopTimer <= 0 && z.onGround) {
+          z.vy = z.hopVy; z.hopTimer = 60 + Math.floor(Math.random() * 90);
+          sfxJump.cloneNode().play().catch(() => {});  // boss jump sound
+        }
         z.attackDelay--;
         if (z.attackDelay <= 0 && z.onGround && dxAbs < 560) {
           z.megaState = 'lunge'; z.attackDir = dir;
           z.vx = dir * z.pounceVx; z.vy = z.pounceVy;
           z.hasHitOnLunge = false; z.lungeTimer = z.lungeStart;
+          sfxJump.cloneNode().play().catch(() => {});  // boss lunge = jump sound
         }
         z.shootCooldown--;
+        let boss_shooting = false;
         if (z.shootCooldown <= 0 && dxAbs > 50 && dxAbs < 600 && Math.abs(player.y - z.y) < 110) {
           // Machine-gun burst: 10 rapid shots then a pause to reload
           const isM60 = z.charSkin === 'viper';
           const spread = (Math.random() - 0.5) * (isM60 ? 0.18 : 0.1);
           const bColor = isM60 ? '#ff9933' : '#ffe680';
-          bullets.push({ x: z.x + z.w / 2 + dir * 14, y: z.y + z.h * 0.3,
+          // Fire from the character's barrel height (matches the player's shoot pose).
+          bullets.push({ x: z.x + z.w / 2 + dir * 18, y: z.y + z.h * 0.32,
             vx: dir * (isM60 ? 14 : 17) + spread,
             vy: (player.y - z.y) / Math.max(1, dxAbs) * 9 + spread,
             life: 110, fromPlayer: false, damage: isM60 ? 18 : 13, color: bColor, isRocket: false });
           z.burstCount = (z.burstCount || 0) + 1;
           z.shootCooldown = z.burstCount % 10 === 0 ? 90 + Math.floor(Math.random() * 40) : (isM60 ? 7 : 5);
+          // Boss gunfire loop (same MG sample as the player); refresh the keep-alive frame.
+          if (sfxBossMG.paused) { try { sfxBossMG.currentTime = 0; } catch (_) {} sfxBossMG.play().catch(() => {}); }
+          bossMGLastShot = frameCount;
+          boss_shooting = true;
+          // Use the same shooting pose/animation as the player character.
+          z.state = 'gunshoot'; z.stateFrame = z.stateFrame || 0;
         }
-        if (z.state !== 'attack') z.state = dxAbs < z.prefMin ? 'run' : 'walk';
+        if (!boss_shooting && z.state !== 'attack') z.state = dxAbs < z.prefMin ? 'run' : 'walk';
       } else if (z.megaState === 'lunge') {
         z.lungeTimer--;
         z.vx = z.attackDir * (z.onGround ? z.pounceVx * 0.65 : z.pounceVx);
@@ -2102,9 +2136,9 @@ function update() {
     }
 
     // Per-zombie groan — only living zombies reach this point (dead ones early-continue above).
-    // Level-5 demon boss has its own roar; skip the generic zombie groans for it.
-    const isLevel5Demon = z.type === 'mega' && z.bossLevel === 5;
-    if (!isLevel5Demon && frameCount >= z.nextGroan) {
+    // Level-5 demon boss has its own roar; the bonus charBoss only does jump/shoot sounds.
+    const noGroan = (z.type === 'mega' && z.bossLevel === 5) || z.type === 'charBoss';
+    if (!noGroan && frameCount >= z.nextGroan) {
       const distAbs = Math.abs(dx);
       if (distAbs < 1100) {
         // Closer zombies are louder; per-clip cap is enforced inside playZombieGroan.
@@ -3609,19 +3643,23 @@ function drawPlayerZiggy(drawX, drawY) {
     return;
   }
 
-  // M16 — use wider 360x240 rifle sprites; the 132x174 m16_file sprites clip the barrel
+  // M16 — use wider 360x240 rifle sprites; the 132x174 m16_file sprites clip the barrel.
+  // Scale by content height (152px measured), not canvas height (240px), so Ziggy
+  // stays the same size as all other animations. Foot row measured at 226/240.
   if (animName === 'm16') {
     if (playerAnim.state !== 'm16') { playerAnim.state = 'm16'; playerAnim.frame = 0; playerAnim.timer = 0; }
     playerAnim.timer++;
     if (playerAnim.timer >= 3) { playerAnim.timer = 0; playerAnim.frame = (playerAnim.frame + 1) % ziggyRifleFrames.length; }
     const ri = ziggyRifleFrames[Math.min(playerAnim.frame, ziggyRifleFrames.length - 1)];
     if (ri && ri.complete && ri.naturalWidth) {
-      const rScale = ZIGGY_HEIGHT / ri.naturalHeight;
-      const rdw = ri.naturalWidth * rScale;
+      const rScale = ZIGGY_HEIGHT / 152;        // 152 = measured content height in source
+      const rdw = ri.naturalWidth  * rScale;    // 360 * rScale
+      const rdh = ri.naturalHeight * rScale;    // 240 * rScale
+      const rFootY = 226 * rScale;              // foot row scaled to screen px
       ctx.save();
       ctx.translate(drawX, drawY);
       if (player.facing === -1) ctx.scale(-1, 1);
-      ctx.drawImage(ri, -rdw / 2, -ZIGGY_HEIGHT * 0.942, rdw, ZIGGY_HEIGHT);
+      ctx.drawImage(ri, -rdw / 2, -rFootY, rdw, rdh);
       ctx.restore();
     }
     return;
@@ -3700,8 +3738,14 @@ function drawZombie(z) {
     const skin = z.charSkin;
     const anims   = skin === 'viper' ? VIPER_ANIMS   : ZIGGY_ANIMS;
     const sprites = skin === 'viper' ? viperSprites   : ziggySprites;
-    const aMap = { run: 'walk', attack: 'shoot', die: 'die', walk: 'walk' };
-    const animName = aMap[z.state] || 'idle';
+    // gunshoot -> the character's own firing pose (Viper m60shoot, Ziggy m16), same as the player.
+    let animName;
+    if (z.state === 'gunshoot') {
+      animName = skin === 'viper' ? 'm60shoot' : 'm16';
+    } else {
+      const aMap = { run: 'walk', attack: 'shoot', die: 'die', walk: 'walk' };
+      animName = aMap[z.state] || 'idle';
+    }
     const aCfg = anims[animName];
     const animFrames = sprites[animName];
     if (aCfg && animFrames && animFrames.length > 0) {
