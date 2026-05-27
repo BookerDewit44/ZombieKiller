@@ -417,6 +417,7 @@ let score = 0;
 let level = 1;
 let frameCount = 0;
 let cameraX = 0;
+let cameraY = 0;
 let keys = {};
 let lastShot = 0;
 let lastGrenade = 0;
@@ -738,7 +739,7 @@ function createZombieEx(x, speed, hpMult) {
 
 function createCharBoss(x) {
   const other = selectedChar === 'viper' ? 'rambo' : 'viper';
-  const hp = 650;
+  const hp = 10000;
   return {
     x, y: GROUND_Y,
     w: 28, h: 85,
@@ -762,6 +763,7 @@ function createCharBoss(x) {
     contactCooldown: 0,
     jumpTimer: 30 + Math.floor(Math.random() * 60),
     shootCooldown: 25 + Math.floor(Math.random() * 25),
+    shootPoseTimer: 0,  // holds the firing pose visible after each shot
     burstCount: 0,      // tracks rapid-fire burst shots
     pounceVx: 15, pounceVy: -13, retreatVx: 13,
     meleeDmg: 35, lungeStart: 60,
@@ -780,21 +782,26 @@ function spawnCharBoss() {
 
 // Phone booth appears after the bonus-level zombies are cleared. Grabbing the
 // telephone plays an announcement; the boss spawns once it finishes.
+// The booth's base content ends at ~95% of the PNG height (transparent padding below),
+// so anchor that row to the ground rather than the PNG's bottom edge.
+const PHONE_BOOTH_BASE_FRAC = 0.95;
 function spawnPhoneBooth() {
   phoneState = 'waiting';
-  // Draw at the sprite's natural aspect (≈1.5:1) so it isn't squished; base sits on the ground.
+  // Draw at the sprite's natural aspect (≈1.5:1) so it isn't squished.
   const aspect = (phoneBoothImg.naturalWidth && phoneBoothImg.naturalHeight)
     ? phoneBoothImg.naturalWidth / phoneBoothImg.naturalHeight : 1.5;
   const h = 210;
   const w = h * aspect;
   const bx = Math.max(60, Math.min(WORLD_WIDTH - w - 60, player.x + 180));
-  phoneBooth = { x: bx, y: GROUND_Y - h, w, h };
+  // y set so the base row (0.95*h) lands exactly on GROUND_Y.
+  phoneBooth = { x: bx, y: GROUND_Y - h * PHONE_BOOTH_BASE_FRAC, w, h };
 }
 
 function onPhoneEnded() {
   if (phoneState !== 'ringing') return;
   phoneState = 'done';
   phoneBooth = null;
+  sfxBonusChant.volume = 0.85; // restore bonus music to normal
   bossSpawnedThisLevel = true;
   spawnCharBoss();
 }
@@ -832,7 +839,7 @@ function lineIntersectsRect(x0, y0, x1, y1, rx, ry, rw, rh) {
 
 // ── Physics helpers ──────────────────────────────────────────
 function applyGravity(entity) {
-  const g   = level === 4 ? 0.15 : 0.55;
+  const g   = level === 4 ? 0.28 : 0.55;
   const cap = level === 4 ? 5    : 18;
   entity.vy += g;
   if (entity.vy > cap) entity.vy = cap;
@@ -859,6 +866,8 @@ function resolveGroundCollision(entity) {
   // world bounds
   if (entity.x < 0) entity.x = 0;
   if (entity.x + entity.w > WORLD_WIDTH) entity.x = WORLD_WIDTH - entity.w;
+  // Level 4 ceiling — top of the background sprite
+  if (level === 4 && entity.y < 0) { entity.y = 0; entity.vy = 0; }
 }
 
 // ── Shooting ─────────────────────────────────────────────────
@@ -1243,6 +1252,7 @@ function resetPlayerPos() {
   player.vx = 0;
   player.vy = 0;
   cameraX = 0;
+  cameraY = 0;
 }
 
 // ── Input ────────────────────────────────────────────────────
@@ -1462,14 +1472,14 @@ function update() {
     sfxJump.play().catch(() => {});
   }
 
-  // Phone booth telephone: grab to trigger the announcement; advance to boss when it ends.
-  // Grab zone is the booth body (left ~55% of the wide sprite), not the swung-out door.
-  const boothBodyW = phoneBooth ? phoneBooth.w * 0.55 : 0;
+  // Phone booth telephone: activates only when the player is standing essentially on
+  // top of the phone (booth centre) — like stepping onto an ammo box.
+  const phoneX = phoneBooth ? phoneBooth.x + phoneBooth.w * 0.5 : 0;
   if (phoneState === 'waiting' && phoneBooth &&
-      player.x < phoneBooth.x + boothBodyW && player.x + player.w > phoneBooth.x &&
-      player.y < phoneBooth.y + phoneBooth.h && player.y + player.h > phoneBooth.y) {
+      Math.abs((player.x + player.w / 2) - phoneX) < 14 && player.onGround) {
     phoneState = 'ringing';
     phoneTimer = 1800; // fallback (~30s) if the audio 'ended' event never fires; 'ended' is the real trigger
+    sfxBonusChant.volume = 0.18; // duck the bonus music so the announcement is clear
     try { sfxPhone.currentTime = 0; } catch (_) {}
     sfxPhone.play().catch(() => {});
     sfxPhone.addEventListener('ended', onPhoneEnded, { once: true });
@@ -1509,6 +1519,12 @@ function update() {
   const targetCameraX = player.x - canvas.width / 2 + player.w / 2;
   cameraX += (targetCameraX - cameraX) * 0.1;
   cameraX = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, cameraX));
+
+  // Vertical camera follow — level 4 only; tracks upward when player jumps
+  const targetCameraY = level === 4
+    ? Math.max(0, (GROUND_Y - canvas.height * 0.5) - player.y)
+    : 0;
+  cameraY += (targetCameraY - cameraY) * 0.08;
 
   // Portal: animate + collision (active during playing, between level 3 and 4)
   if (portal && portal.active) {
@@ -1567,16 +1583,6 @@ function update() {
         }
       }
       if (hit) { bullets.splice(i, 1); continue; }
-    }
-
-    // Platform collision — swept check so fast bullets don't tunnel through 16px platforms
-    for (const p of basePlatforms) {
-      if (lineIntersectsRect(bpx, bpy, b.x, b.y, p.x, p.y, p.w, p.h)) {
-        if (b.isRocket) createExplosion(b.x, b.y, 200, 160);
-        else particles.push(...createSparks(b.x, b.y, '#888', 3));
-        bullets.splice(i, 1);
-        break;
-      }
     }
   }
 
@@ -1865,27 +1871,38 @@ function update() {
           sfxJump.cloneNode().play().catch(() => {});  // boss lunge = jump sound
         }
         z.shootCooldown--;
-        let boss_shooting = false;
+        if (z.shootPoseTimer > 0) z.shootPoseTimer--;
         if (z.shootCooldown <= 0 && dxAbs > 50 && dxAbs < 600 && Math.abs(player.y - z.y) < 110) {
-          // Machine-gun burst: 10 rapid shots then a pause to reload
+          // Machine-gun burst: long sustained fire, then a short reload pause.
           const isM60 = z.charSkin === 'viper';
           const spread = (Math.random() - 0.5) * (isM60 ? 0.18 : 0.1);
           const bColor = isM60 ? '#ff9933' : '#ffe680';
-          // Fire from the character's barrel height (matches the player's shoot pose).
-          bullets.push({ x: z.x + z.w / 2 + dir * 18, y: z.y + z.h * 0.32,
+          // Muzzle matched to the player's gun position relative to the feet/center.
+          // Player M16 muzzle = feet-80, M60 = feet-54; forward reach from center 48 (M16) / 34 (M60).
+          const feet = z.y + z.h;
+          const muzzleY = isM60 ? feet - 54 : feet - 80;
+          const reachC  = isM60 ? 34 : 48;
+          const mx = z.x + z.w / 2 + dir * reachC;
+          bullets.push({ x: mx, y: muzzleY,
             vx: dir * (isM60 ? 14 : 17) + spread,
-            vy: (player.y - z.y) / Math.max(1, dxAbs) * 9 + spread,
+            vy: (player.y + 28 - muzzleY) / Math.max(1, dxAbs) * (isM60 ? 14 : 17) + spread,
             life: 110, fromPlayer: false, damage: isM60 ? 18 : 13, color: bColor, isRocket: false });
           z.burstCount = (z.burstCount || 0) + 1;
-          z.shootCooldown = z.burstCount % 10 === 0 ? 90 + Math.floor(Math.random() * 40) : (isM60 ? 7 : 5);
+          // Fire ~24 rounds per burst before a brief reload pause (was 10).
+          z.shootCooldown = z.burstCount % 24 === 0 ? 70 + Math.floor(Math.random() * 30) : (isM60 ? 7 : 5);
           // Boss gunfire loop (same MG sample as the player); refresh the keep-alive frame.
           if (sfxBossMG.paused) { try { sfxBossMG.currentTime = 0; } catch (_) {} sfxBossMG.play().catch(() => {}); }
           bossMGLastShot = frameCount;
-          boss_shooting = true;
-          // Use the same shooting pose/animation as the player character.
-          z.state = 'gunshoot'; z.stateFrame = z.stateFrame || 0;
+          // Hold the shooting pose for a while after each shot so it stays visible
+          // through the whole burst and lingers briefly after it ends.
+          z.shootPoseTimer = 26;
         }
-        if (!boss_shooting && z.state !== 'attack') z.state = dxAbs < z.prefMin ? 'run' : 'walk';
+        // Keep the character's firing pose while the hold timer is active.
+        if (z.shootPoseTimer > 0) {
+          if (z.state !== 'gunshoot') { z.state = 'gunshoot'; z.stateFrame = 0; }
+        } else if (z.state !== 'attack') {
+          z.state = dxAbs < z.prefMin ? 'run' : 'walk';
+        }
       } else if (z.megaState === 'lunge') {
         z.lungeTimer--;
         z.vx = z.attackDir * (z.onGround ? z.pounceVx * 0.65 : z.pounceVx);
@@ -2056,14 +2073,18 @@ function update() {
       }
 
     } else {
-      // Post-attack retreat — jump backward away from the player
       if (z.retreatTimer > 0) {
+        // Fleeing after the swipe animation finished
         z.retreatTimer--;
         z.vx = -dir * (z.type === 'big' ? 4.5 : 3.5);
-        if (z.state !== 'attack') z.state = 'walk';
+        z.state = 'walk';
+
+      } else if (z.state === 'attack') {
+        // Hold position while the swipe animation plays through
+        z.vx *= 0.7;
+
       } else {
-        // Separation: don't bunch up. If another zombie is within personal space,
-        // push horizontally away.
+        // Normal approach AI
         let separation = 0;
         const PERSONAL_SPACE = 46;
         const myCx = z.x + z.w / 2;
@@ -2071,53 +2092,49 @@ function update() {
           if (other === z || other.dead) continue;
           const ddx = myCx - (other.x + other.w / 2);
           const ddy = Math.abs((z.y + z.h / 2) - (other.y + other.h / 2));
-          if (ddy > 70) continue;       // ignore zombies on different platforms
+          if (ddy > 70) continue;
           const dist = Math.abs(ddx);
           if (dist > 0 && dist < PERSONAL_SPACE) {
-            // Stronger push when closer; sign keeps you moving away from the other zombie
             separation += Math.sign(ddx || (Math.random() - 0.5)) * (1 - dist / PERSONAL_SPACE) * 2.6;
           }
         }
         z.vx = dir * z.speed + separation;
 
-        // Random hops — staggered timers prevent synchronized jumping
         if (z.jumpTimer > 0) z.jumpTimer--;
         if (z.jumpTimer <= 0 && z.onGround) {
           z.vy = z.type === 'big' ? -(8 + Math.random() * 3) : -(5 + Math.random() * 3);
           z.jumpTimer = 80 + Math.floor(Math.random() * 140);
         }
 
-        // If the separation force is overcoming forward intent, the zombie is being
-        // pushed back — show walk anim instead of run so the back-up reads visually.
         const beingPushedBack = Math.sign(separation) === -Math.sign(dir) && Math.abs(separation) > z.speed * 0.8;
-
-        // Sprite state machine (non-gunner)
-        if (z.state !== 'attack') {
-          z.state = beingPushedBack ? 'walk' : (dxAbs < 200 ? 'run' : 'walk');
-        }
-        z.stateTimer++;
-        const animCfg = ZS.anim[z.state] || ZS.anim.walk;
-        if (z.stateTimer >= animCfg.speed) {
-          z.stateTimer = 0;
-          z.stateFrame++;
-          if (z.state === 'attack' && z.stateFrame >= animCfg.frames) {
-            z.state = 'walk';
-            z.stateFrame = 0;
-          } else {
-            z.stateFrame %= animCfg.frames;
-          }
-        }
+        z.state = beingPushedBack ? 'walk' : (dxAbs < 200 ? 'run' : 'walk');
 
         z.attackCooldown--;
-        if (dxAbs < 30 && Math.abs(player.y - z.y) < 60 && z.attackCooldown <= 0) {
+        const attackRange = player.w / 2 + z.w / 2;
+        if (dxAbs < attackRange && Math.abs((player.y + player.h) - (z.y + z.h)) < 80 && z.attackCooldown <= 0) {
           hurtPlayer(z.type === 'big' ? 15 : 8);
           z.attackCooldown = 60;
           z.state = 'attack';
           z.stateFrame = 0;
           z.stateTimer = 0;
-          // Jump backward after striking
+          z.vx = 0;
+        }
+      }
+
+      // Advance animation — runs regardless of which branch above was taken
+      z.stateTimer++;
+      const animCfg = ZS.anim[z.state] || ZS.anim.walk;
+      if (z.stateTimer >= animCfg.speed) {
+        z.stateTimer = 0;
+        z.stateFrame++;
+        if (z.state === 'attack' && z.stateFrame >= animCfg.frames) {
+          // Swipe finished — now jump back and flee
           z.vy = z.type === 'big' ? -(8 + Math.random() * 3) : -(6 + Math.random() * 3);
-          z.retreatTimer = 55;
+          z.retreatTimer = z.type === 'big' ? 120 : 55;
+          z.state = 'walk';
+          z.stateFrame = 0;
+        } else {
+          z.stateFrame %= animCfg.frames;
         }
       }
     }
@@ -2346,10 +2363,10 @@ function drawBackground() {
 
   if (inHiddenLevel) { drawBgSkyCity(W, GY); drawPlatforms(); return; }
 
-  // Dark fallback fill
+  // Dark fallback fill — extend upward by cameraY so jumps don't reveal black sky
   const fallbacks = ['#0a0000','#04020e','#020600','#080700','#080000'];
   ctx.fillStyle = fallbacks[level - 1] || '#000000';
-  ctx.fillRect(0, 0, W, canvas.height);
+  ctx.fillRect(0, -cameraY, W, canvas.height + cameraY);
 
   // Background image — scale to fill GROUND_Y height, parallax scroll
   const bgImg = BG_IMAGES[String(level)];
@@ -3806,7 +3823,9 @@ function drawZombie(z) {
       const fi = Math.min(z.stateFrame % animFrames.length, animFrames.length - 1);
       const charImg = animFrames[fi];
       if (charImg && charImg.complete && charImg.naturalWidth) {
-        const refH = skin === 'viper' ? (208 * 0.55) : 85;
+        // Ziggy boss matches the regular player size: 174px sprite drawn at ~125px
+        // (refH 118 → 174 * 85/118 ≈ 125, same as the player's ZIGGY_HEIGHT).
+        const refH = skin === 'viper' ? (208 * 0.55) : 118;
         const scale = z.h / refH;
         const dw = charImg.naturalWidth * scale;
         const dh = charImg.naturalHeight * scale;
@@ -4281,9 +4300,9 @@ function drawPhoneBooth() {
     ctx.fillStyle = '#8a0000';
     ctx.fillRect(sx, phoneBooth.y, phoneBooth.w, phoneBooth.h);
   }
-  // Telephone handset over the booth interior (left side of the wide sprite) — glowing while grabbable.
-  const cx = sx + phoneBooth.w * 0.3;
-  const cy = phoneBooth.y + phoneBooth.h * 0.45;
+  // Telephone handset in the center of the booth sprite — glowing while grabbable.
+  const cx = sx + phoneBooth.w * 0.5;
+  const cy = phoneBooth.y + phoneBooth.h * 0.5;
   ctx.save();
   if (phoneState === 'waiting') {
     const pulse = 0.6 + Math.sin(frameCount * 0.15) * 0.4;
@@ -4401,30 +4420,23 @@ function drawGoldPickups() {
     ctx.beginPath();
     ctx.ellipse(cx, cy + r + 4, 28, 7, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Nugget body
+    // Glowing infinity symbol — two linked gold loops (∞).
+    const pulse = 0.8 + Math.sin(gp.anim * 2) * 0.2;
+    const loopR = r * 0.78;          // radius of each loop
+    const off   = loopR * 0.92;      // horizontal offset of each loop centre
     ctx.shadowColor = '#ffd700';
-    ctx.shadowBlur = 18;
-    const ng = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
-    ng.addColorStop(0, '#fff8a0');
-    ng.addColorStop(0.4, '#ffd700');
-    ng.addColorStop(0.8, '#b8860b');
-    ng.addColorStop(1, '#7a5c00');
-    ctx.fillStyle = ng;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
-    // Inner shine
+    ctx.shadowBlur = 22 * pulse;
+    // Outer thick gold stroke
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = Math.max(4, loopR * 0.55);
+    ctx.beginPath(); ctx.arc(cx - off, cy, loopR, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx + off, cy, loopR, 0, Math.PI * 2); ctx.stroke();
+    // Bright inner core stroke
     ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(255,255,220,0.55)';
-    ctx.beginPath();
-    ctx.arc(cx - r * 0.28, cy - r * 0.3, r * 0.32, 0, Math.PI * 2);
-    ctx.fill();
-    // Label
-    ctx.fillStyle = '#7a4d00';
-    ctx.font = `bold ${Math.floor(r * 0.7)}px Courier New`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('∞', cx, cy + 1);
+    ctx.strokeStyle = '#fff8c0';
+    ctx.lineWidth = Math.max(1.5, loopR * 0.22);
+    ctx.beginPath(); ctx.arc(cx - off, cy, loopR, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx + off, cy, loopR, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 }
@@ -4805,6 +4817,11 @@ function drawFog() {
 // ── Main render ───────────────────────────────────────────────
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Vertical camera for level 4 — shift the whole world up when player jumps
+  ctx.save();
+  ctx.translate(0, cameraY);
+
   drawBackground();
   drawFog();
   drawBlood();
@@ -4822,6 +4839,9 @@ function draw() {
   drawExplosions();
   drawParticles();
   drawLightning();
+
+  ctx.restore();
+
   drawHUD();
   drawBossHUD();
   // Debug warp confirmation banner
