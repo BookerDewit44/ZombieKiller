@@ -48,7 +48,7 @@ document.addEventListener('click', function playIntro() {
 }, { once: true });
 
 const musicMain  = new Audio('audio/edm-loop-319038.mp3'); musicMain.volume  = 0.4; musicMain.loop  = true;
-const musicLevel5 = new Audio('audio/Confined5.wav');        musicLevel5.volume = 0.4; musicLevel5.loop = true;
+const musicLevel5 = new Audio('audio/My Obsession.wav');     musicLevel5.volume = 0.4; musicLevel5.loop = true;
 // Keep PLAYLIST as alias so existing pause calls still work
 const PLAYLIST = [musicMain, musicLevel5];
 let playlistIndex = 0; // unused but kept for safety
@@ -380,6 +380,15 @@ ziggyRocketImg.src = 'images/commando_redone_same_size_zero_white_edges/rocket_l
 const viperRocketImg = new Image();
 viperRocketImg.src = 'images/full_character_snips_no_background/07_rocket_launcher_shooting_04.png';
 
+// ── Wider M16 rifle sprites (360x240) — 132x174 m16_file sprites clip the barrel ─
+const ZIGGY_RIFLE_DIR = 'images/commando_redone_same_size_zero_white_edges/rifle_shooting/';
+const ziggyRifleFrames = [1,2,3,4,5,6].map(i => {
+  const img = new Image();
+  img.src = ZIGGY_RIFLE_DIR + 'commando_rifle_shooting_0' + i + '.png';
+  return img;
+});
+// Measured: foot row 226/240 = 0.942; content center xFrac = 0.494 (nearly centered)
+
 // ── Character selection ───────────────────────────────────────
 let selectedChar = 'rambo';
 
@@ -414,7 +423,7 @@ const LEVELS = [
 
 // ── Hidden bonus level config ────────────────────────────────
 const HIDDEN_LEVEL_CONFIG = {
-  zombies: 8,
+  zombies: 4,
   speed: 2.6,
   zombieHpMult: 2.0,
 };
@@ -511,6 +520,17 @@ let bossRoundActive = false;
 let bossSpawnedThisLevel = false;
 let bossAnnounceTimer = 0;
 let healthDroppedThisLevel = false;
+
+// ── Bonus-level phone booth sequence ─────────────────────────
+const phoneBoothImg = new Image(); phoneBoothImg.src = 'images/Phone booth.png';
+const sfxPhone = new Audio('audio/phone-announcement-number-not-available-german-english-25513.mp3');
+sfxPhone.volume = 0.95;
+let phoneBooth = null;          // { x, y, w, h } when present
+let phoneState = 'none';        // 'none' | 'waiting' | 'ringing' | 'done'
+let phoneTimer = 0;             // fallback countdown while 'ringing'
+// Boss machine-gun loop (separate from the player's so they don't fight over one element)
+const sfxBossMG = new Audio(MG_FIRE_AUDIO); sfxBossMG.loop = true; sfxBossMG.volume = 0.5;
+let bossMGLastShot = -999;
 let dogLevels = [];
 let dogEventState = 'idle'; // 'idle'|'freeze'|'active'|'dissipating'|'done'
 let dogFogAlpha = 0;
@@ -677,6 +697,8 @@ function enterHiddenLevel() {
   level = 99;
   portal = null;
   gameState = 'playing';
+  phoneState = 'none'; phoneBooth = null;
+  try { sfxPhone.pause(); sfxPhone.currentTime = 0; } catch (_) {}
   zombies = [];
   spawnQueue = [];
   spawnTimer = 0;
@@ -745,6 +767,22 @@ function spawnCharBoss() {
   bossAnnounceTimer = 210;
   const bx = Math.max(300, Math.min(WORLD_WIDTH - 300, WORLD_WIDTH / 2 + (Math.random() - 0.5) * 400));
   zombies.push(createCharBoss(bx));
+}
+
+// Phone booth appears after the bonus-level zombies are cleared. Grabbing the
+// telephone plays an announcement; the boss spawns once it finishes.
+function spawnPhoneBooth() {
+  phoneState = 'waiting';
+  const bx = Math.max(120, Math.min(WORLD_WIDTH - 200, player.x + 200));
+  phoneBooth = { x: bx, y: GROUND_Y - 160, w: 96, h: 160 };
+}
+
+function onPhoneEnded() {
+  if (phoneState !== 'ringing') return;
+  phoneState = 'done';
+  phoneBooth = null;
+  bossSpawnedThisLevel = true;
+  spawnCharBoss();
 }
 
 function spawnAmmoPickup(x, y) {
@@ -1179,8 +1217,10 @@ function toggleGodMode() {
 }
 
 // Debug: warp straight to a level for testing without playing through earlier ones.
+let warpFlash = 0, warpFlashLevel = 0;
 function warpToLevel(n) {
   n = Math.max(1, Math.min(LEVELS.length, n));
+  warpFlash = 60; warpFlashLevel = n; // on-screen confirmation banner
   // Make sure a game is actually running (start from menu/dead/win).
   if (gameState === 'menu' || gameState === 'dead' || gameState === 'win') {
     startGame();
@@ -1290,6 +1330,8 @@ function startGame() {
   // Reset any lingering banshee state from a previous run.
   pendingZombieSpawn = false;
   try { sfxBanshee.pause(); sfxBanshee.currentTime = 0; } catch (_) {}
+  phoneState = 'none'; phoneBooth = null;
+  try { sfxPhone.pause(); sfxPhone.currentTime = 0; } catch (_) {}
   // Level 1 is dog-free so players can get oriented before the dog mechanic shows up.
   const _lp = [2,3,4,5];
   for (let _i = _lp.length-1; _i > 0; _i--) { const _j = Math.floor(Math.random()*(_i+1)); [_lp[_i],_lp[_j]]=[_lp[_j],_lp[_i]]; }
@@ -1349,7 +1391,9 @@ function update() {
 
   // Player movement — locked while shooting or meleeing so the player has to commit to either firing or moving.
   player.isMoving = false;
-  const actionLocked = player.isShooting || player.isMelee;
+  // Phone announcement freezes the player completely until it finishes.
+  const phoneFrozen = (phoneState === 'ringing');
+  const actionLocked = player.isShooting || player.isMelee || phoneFrozen;
   if (actionLocked) {
     player.vx *= 0.4; // brake hard so existing momentum stops quickly
   } else if (keys['ArrowLeft'] || keys['KeyA']) {
@@ -2165,9 +2209,11 @@ function update() {
   if (gameState === 'playing' && !pendingZombieSpawn && !pendingDogEvent && spawnQueue.length === 0 && zombies.length === 0) {
     if (inHiddenLevel) {
       if (!bossSpawnedThisLevel) {
-        bossSpawnedThisLevel = true;
-        spawnCharBoss();
-      } else {
+        // Zombies cleared — bring up the phone booth (once). The boss only spawns
+        // after the player grabs the telephone and the announcement finishes (onPhoneEnded).
+        if (phoneState === 'none') spawnPhoneBooth();
+      } else if (goldPickups.length === 0) {
+        // Boss dead AND the infinite-ammo drop has been collected — now advance.
         inHiddenLevel = false;
         // CONTINUE → nextLevel() which does level++; we want level 4 next, so set level to 3 here.
         level = 3;
@@ -3563,6 +3609,24 @@ function drawPlayerZiggy(drawX, drawY) {
     return;
   }
 
+  // M16 — use wider 360x240 rifle sprites; the 132x174 m16_file sprites clip the barrel
+  if (animName === 'm16') {
+    if (playerAnim.state !== 'm16') { playerAnim.state = 'm16'; playerAnim.frame = 0; playerAnim.timer = 0; }
+    playerAnim.timer++;
+    if (playerAnim.timer >= 3) { playerAnim.timer = 0; playerAnim.frame = (playerAnim.frame + 1) % ziggyRifleFrames.length; }
+    const ri = ziggyRifleFrames[Math.min(playerAnim.frame, ziggyRifleFrames.length - 1)];
+    if (ri && ri.complete && ri.naturalWidth) {
+      const rScale = ZIGGY_HEIGHT / ri.naturalHeight;
+      const rdw = ri.naturalWidth * rScale;
+      ctx.save();
+      ctx.translate(drawX, drawY);
+      if (player.facing === -1) ctx.scale(-1, 1);
+      ctx.drawImage(ri, -rdw / 2, -ZIGGY_HEIGHT * 0.942, rdw, ZIGGY_HEIGHT);
+      ctx.restore();
+    }
+    return;
+  }
+
   const animCfg = ZIGGY_ANIMS[animName];
   const frames  = ziggySprites[animName];
 
@@ -4619,6 +4683,20 @@ function draw() {
   drawLightning();
   drawHUD();
   drawBossHUD();
+  // Debug warp confirmation banner
+  if (warpFlash > 0) {
+    warpFlash--;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, warpFlash / 30);
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 60px Courier New';
+    ctx.fillStyle = '#00ff88';
+    ctx.shadowColor = '#00ff88';
+    ctx.shadowBlur = 24;
+    ctx.fillText('LEVEL ' + warpFlashLevel, canvas.width / 2, canvas.height / 2);
+    ctx.restore();
+    ctx.textAlign = 'left';
+  }
   if (gameState === 'paused') {
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
