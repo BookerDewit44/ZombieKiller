@@ -1201,9 +1201,9 @@ document.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyP') togglePause();
   if (e.code === 'KeyI') toggleGodMode();
-  // Number keys 1-5 (top row or numpad) warp to that level — debug/test shortcut.
-  const m = /^(?:Digit|Numpad)([1-5])$/.exec(e.code);
-  if (m) warpToLevel(parseInt(m[1], 10));
+  // Number keys 1-5 warp to that level — debug/test shortcut.
+  // Use e.key (the produced character) which is reliable across layouts and numpad.
+  if (e.key >= '1' && e.key <= '5') warpToLevel(parseInt(e.key, 10));
   e.preventDefault();
 });
 document.addEventListener('keyup', e => {
