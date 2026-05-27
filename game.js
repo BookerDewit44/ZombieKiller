@@ -1256,6 +1256,10 @@ function resetPlayerPos() {
 }
 
 // ── Input ────────────────────────────────────────────────────
+// Debug shortcuts (level warp, bonus warp) are enabled only when running locally,
+// so the public GitHub Pages build has no level selection.
+const DEBUG_KEYS = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+
 let godMode = false;
 function toggleGodMode() {
   godMode = !godMode;
@@ -1289,15 +1293,17 @@ document.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyP') togglePause();
   if (e.code === 'KeyI') toggleGodMode();
-  // Number keys 1-5 warp to that level — debug/test shortcut.
-  // Use e.key (the produced character) which is reliable across layouts and numpad.
-  if (e.key >= '1' && e.key <= '5') warpToLevel(parseInt(e.key, 10));
-  // B (or 0) warps into the secret bonus level for testing.
-  if (e.code === 'KeyB' || e.key === '0') {
-    initAudioCtx();
-    if (gameState === 'menu' || gameState === 'dead' || gameState === 'win') startGame();
-    warpFlash = 60; warpFlashLevel = 'BONUS';
-    enterHiddenLevel();
+  // Level-selection / bonus-warp shortcuts — local testing only, disabled on the public build.
+  if (DEBUG_KEYS) {
+    // Number keys 1-5 warp to that level (e.key is reliable across layouts/numpad).
+    if (e.key >= '1' && e.key <= '5') warpToLevel(parseInt(e.key, 10));
+    // B (or 0) warps into the secret bonus level.
+    if (e.code === 'KeyB' || e.key === '0') {
+      initAudioCtx();
+      if (gameState === 'menu' || gameState === 'dead' || gameState === 'win') startGame();
+      warpFlash = 60; warpFlashLevel = 'BONUS';
+      enterHiddenLevel();
+    }
   }
   e.preventDefault();
 });
