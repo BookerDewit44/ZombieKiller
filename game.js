@@ -498,6 +498,8 @@ let zombies = [];
 let particles = [];
 let ammoPickups = [];
 let weaponPickups = [];
+let goldPickups = [];
+let unlimitedAmmo = false;
 let bloodSplatters = [];
 let slimeProjectiles = [];
 let lightningBolts = [];
@@ -684,7 +686,7 @@ function enterHiddenLevel() {
   resetPlayerPos();
   bullets = []; grenadeList = []; explosions = [];
   particles = []; bloodSplatters = []; slimeProjectiles = [];
-  ammoPickups = []; weaponPickups = [];
+  ammoPickups = []; weaponPickups = []; goldPickups = [];
   const cfg = HIDDEN_LEVEL_CONFIG;
   for (let i = 0; i < cfg.zombies; i++) {
     spawnQueue.push({ x: randomSpawnX(), speed: cfg.speed + Math.random() * 0.5, hpMult: cfg.zombieHpMult });
@@ -705,7 +707,7 @@ function createZombieEx(x, speed, hpMult) {
 
 function createCharBoss(x) {
   const other = selectedChar === 'viper' ? 'rambo' : 'viper';
-  const hp = 1800;
+  const hp = 650;
   return {
     x, y: GROUND_Y,
     w: 28, h: 85,
@@ -788,8 +790,8 @@ function resolveGroundCollision(entity) {
 // ── Shooting ─────────────────────────────────────────────────
 function shoot() {
   const usingHeavy = player.weapon !== 'pistol';
-  // Heavy weapons require their own ammo; if it runs out, drop back to pistol.
-  if (usingHeavy && player.heavyAmmo <= 0) {
+  // Heavy weapons require their own ammo; drop to pistol only if not infinite.
+  if (usingHeavy && player.heavyAmmo <= 0 && !unlimitedAmmo) {
     player.weapon = 'pistol';
   }
   const isHeavy = player.weapon !== 'pistol';
@@ -797,7 +799,7 @@ function shoot() {
   const w = WEAPONS[player.weapon];
   if (frameCount - lastShot < w.fireRate) return;
   lastShot = frameCount;
-  if (isHeavy) player.heavyAmmo--;
+  if (isHeavy && !unlimitedAmmo) player.heavyAmmo--;
   player.isShooting = true;
   player.shootTimer = 10;
   playShootSfx(player.weapon);
@@ -930,8 +932,7 @@ function damageZombie(z, amount, knockX = 0) {
       ammoPickups.push({ x: z.x, y: z.y + z.h - 14, w: 20, h: 18, anim: 0, isHealth: true });
     }
     if (z.type === 'charBoss') {
-      spawnWeaponPickup(z.x + z.w / 2 - 22, z.y + z.h - 16, 'rocket');
-      spawnAmmoPickup(z.x, z.y + z.h - 14);
+      goldPickups.push({ x: z.x + z.w / 2 - 12, y: z.y + z.h - 24, w: 24, h: 24, anim: 0 });
       bossRoundActive = false;
     } else if (z.type === 'mega') {
       // Mega boss always drops rocket + double ammo
@@ -1065,7 +1066,7 @@ function updateAmmoUI() {
   const el = document.getElementById('ammo-count');
   if (player.weapon !== 'pistol') {
     const w = WEAPONS[player.weapon];
-    el.textContent = `${w.name} ${player.heavyAmmo}`;
+    el.textContent = unlimitedAmmo ? `${w.name} ∞` : `${w.name} ${player.heavyAmmo}`;
   } else {
     // Both characters have unlimited pistol ammo now.
     el.textContent = '∞';
@@ -1260,6 +1261,8 @@ function startGame() {
   player.weapon = 'pistol';
   player.heavyAmmo = 0;
   player.lives = 3;
+  unlimitedAmmo = false;
+  goldPickups = [];
   player.deathTimer = 0;
   player.invincible = 0;
   // Reset any lingering banshee state from a previous run.
@@ -1716,14 +1719,17 @@ function update() {
           z.hasHitOnLunge = false; z.lungeTimer = z.lungeStart;
         }
         z.shootCooldown--;
-        if (z.shootCooldown <= 0 && dxAbs > 50 && dxAbs < 550 && Math.abs(player.y - z.y) < 90) {
-          // Rapid burst: fires 3 shots with tight cooldown, then longer pause
-          const spread = (z.burstCount % 3) * 0.15 - 0.15;
+        if (z.shootCooldown <= 0 && dxAbs > 50 && dxAbs < 600 && Math.abs(player.y - z.y) < 110) {
+          // Machine-gun burst: 10 rapid shots then a pause to reload
+          const isM60 = z.charSkin === 'viper';
+          const spread = (Math.random() - 0.5) * (isM60 ? 0.18 : 0.1);
+          const bColor = isM60 ? '#ff9933' : '#ffe680';
           bullets.push({ x: z.x + z.w / 2 + dir * 14, y: z.y + z.h * 0.3,
-            vx: dir * 10 + spread, vy: (player.y - z.y) / Math.max(1, dxAbs) * 9 + spread,
-            life: 100, fromPlayer: false, damage: 15, color: '#ff44ff', isRocket: false });
+            vx: dir * (isM60 ? 14 : 17) + spread,
+            vy: (player.y - z.y) / Math.max(1, dxAbs) * 9 + spread,
+            life: 110, fromPlayer: false, damage: isM60 ? 18 : 13, color: bColor, isRocket: false });
           z.burstCount = (z.burstCount || 0) + 1;
-          z.shootCooldown = z.burstCount % 3 === 0 ? 55 + Math.floor(Math.random() * 30) : 10;
+          z.shootCooldown = z.burstCount % 10 === 0 ? 90 + Math.floor(Math.random() * 40) : (isM60 ? 7 : 5);
         }
         if (z.state !== 'attack') z.state = dxAbs < z.prefMin ? 'run' : 'walk';
       } else if (z.megaState === 'lunge') {
@@ -2093,6 +2099,29 @@ function update() {
       continue;
     }
   }
+
+  // Gold nugget pickups — grant unlimited ammo for the character's primary weapon
+  for (let i = goldPickups.length - 1; i >= 0; i--) {
+    const gp = goldPickups[i];
+    gp.anim = (gp.anim + 0.04) % (Math.PI * 2);
+    if (
+      player.x < gp.x + gp.w && player.x + player.w > gp.x &&
+      player.y < gp.y + gp.h && player.y + player.h > gp.y
+    ) {
+      unlimitedAmmo = true;
+      player.weapon = characterWeapon();
+      player.heavyAmmo = 1; // non-zero so HUD shows the weapon name
+      updateAmmoUI();
+      goldPickups.splice(i, 1);
+      for (let p = 0; p < 32; p++) {
+        const ang = (p / 32) * Math.PI * 2;
+        particles.push({ x: gp.x + gp.w / 2, y: gp.y + gp.h / 2,
+          vx: Math.cos(ang) * (3 + Math.random() * 3), vy: Math.sin(ang) * (3 + Math.random() * 3) - 2,
+          life: 40 + Math.random() * 20, color: p % 2 === 0 ? '#ffd700' : '#fff8a0', size: 2 + Math.random() * 2 });
+      }
+    }
+  }
+
 
   // Particles
   for (let i = particles.length - 1; i >= 0; i--) {
@@ -4129,6 +4158,50 @@ function drawWeaponPickups() {
   }
 }
 
+function drawGoldPickups() {
+  for (const gp of goldPickups) {
+    const sx = gp.x - cameraX;
+    if (sx + gp.w < -30 || sx > canvas.width + 30) continue;
+    const hover = Math.sin(gp.anim) * 4;
+    const cy = gp.y + gp.h / 2 + hover;
+    const cx = sx + gp.w / 2;
+    const r = gp.w / 2;
+    ctx.save();
+    // Ground glow
+    const gg = ctx.createRadialGradient(cx, cy + r + 4, 0, cx, cy + r + 4, 28);
+    gg.addColorStop(0, 'rgba(255,215,0,0.5)');
+    gg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + r + 4, 28, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Nugget body
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 18;
+    const ng = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
+    ng.addColorStop(0, '#fff8a0');
+    ng.addColorStop(0.4, '#ffd700');
+    ng.addColorStop(0.8, '#b8860b');
+    ng.addColorStop(1, '#7a5c00');
+    ctx.fillStyle = ng;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner shine
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,220,0.55)';
+    ctx.beginPath();
+    ctx.arc(cx - r * 0.28, cy - r * 0.3, r * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+    // Label
+    ctx.fillStyle = '#7a4d00';
+    ctx.font = `bold ${Math.floor(r * 0.7)}px Courier New`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('∞', cx, cy + 1);
+    ctx.restore();
+  }
+}
 
 function drawPortal() {
   if (!portal || !portal.active) return;
@@ -4512,6 +4585,7 @@ function draw() {
   drawAmmoPickups();
   drawHealthOrbs();
   drawWeaponPickups();
+  drawGoldPickups();
   drawBullets();
   for (const z of zombies) drawZombie(z);
   drawPlayer();
