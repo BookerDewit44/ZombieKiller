@@ -48,7 +48,7 @@ document.addEventListener('click', function playIntro() {
 }, { once: true });
 
 const musicMain  = new Audio('audio/edm-loop-319038.mp3'); musicMain.volume  = 0.4; musicMain.loop  = true;
-const musicLevel5 = new Audio('audio/My Obsession.wav');     musicLevel5.volume = 0.4; musicLevel5.loop = true;
+const musicLevel5 = new Audio('audio/My Obsession.wav');     musicLevel5.volume = 1.0; musicLevel5.loop = true; musicLevel5.crossOrigin = 'anonymous';
 // Keep PLAYLIST as alias so existing pause calls still work
 const PLAYLIST = [musicMain, musicLevel5];
 let playlistIndex = 0; // unused but kept for safety
@@ -170,6 +170,14 @@ function initAudioCtx() {
       .then(decoded => { _gunBuffers[key] = { buffer: decoded, volume: vol }; })
       .catch(() => { /* fall back to HTMLAudio pool */ });
   }
+  // Route the level-5 track through a gain node so it can exceed the
+  // HTMLAudio 1.0 volume ceiling (element volume maxes at 1.0).
+  try {
+    const srcNode = audioCtx.createMediaElementSource(musicLevel5);
+    const gain = audioCtx.createGain();
+    gain.gain.value = 1.0;            // unity (element already at 1.0)
+    srcNode.connect(gain).connect(audioCtx.destination);
+  } catch (_) { /* already routed or unsupported */ }
 }
 
 // Looping MG fire sample for M16/M60 — one playing audio element instead of one
@@ -774,8 +782,13 @@ function spawnCharBoss() {
 // telephone plays an announcement; the boss spawns once it finishes.
 function spawnPhoneBooth() {
   phoneState = 'waiting';
-  const bx = Math.max(120, Math.min(WORLD_WIDTH - 200, player.x + 200));
-  phoneBooth = { x: bx, y: GROUND_Y - 160, w: 96, h: 160 };
+  // Draw at the sprite's natural aspect (≈1.5:1) so it isn't squished; base sits on the ground.
+  const aspect = (phoneBoothImg.naturalWidth && phoneBoothImg.naturalHeight)
+    ? phoneBoothImg.naturalWidth / phoneBoothImg.naturalHeight : 1.5;
+  const h = 210;
+  const w = h * aspect;
+  const bx = Math.max(60, Math.min(WORLD_WIDTH - w - 60, player.x + 180));
+  phoneBooth = { x: bx, y: GROUND_Y - h, w, h };
 }
 
 function onPhoneEnded() {
@@ -793,6 +806,28 @@ function spawnAmmoPickup(x, y) {
 function spawnWeaponPickup(x, y, weapon) {
   weapon = weapon || characterWeapon();
   weaponPickups.push({ x, y, w: 44, h: 16, weapon, anim: 0 });
+}
+
+// ── Projectile-vs-platform swept helpers ─────────────────────
+// Returns true if the line segment (x0,y0)→(x1,y1) intersects rectangle.
+// Used so fast bullets/spit never tunnel through thin (16 px) platforms.
+function lineIntersectsRect(x0, y0, x1, y1, rx, ry, rw, rh) {
+  if (x0 > rx && x0 < rx+rw && y0 > ry && y0 < ry+rh) return true;
+  if (x1 > rx && x1 < rx+rw && y1 > ry && y1 < ry+rh) return true;
+  const dx = x1-x0, dy = y1-y0;
+  if (dy !== 0) {
+    let t = (ry - y0) / dy;
+    if (t >= 0 && t <= 1) { const ix = x0+t*dx; if (ix >= rx && ix <= rx+rw) return true; }
+    t = (ry+rh - y0) / dy;
+    if (t >= 0 && t <= 1) { const ix = x0+t*dx; if (ix >= rx && ix <= rx+rw) return true; }
+  }
+  if (dx !== 0) {
+    let t = (rx - x0) / dx;
+    if (t >= 0 && t <= 1) { const iy = y0+t*dy; if (iy >= ry && iy <= ry+rh) return true; }
+    t = (rx+rw - x0) / dx;
+    if (t >= 0 && t <= 1) { const iy = y0+t*dy; if (iy >= ry && iy <= ry+rh) return true; }
+  }
+  return false;
 }
 
 // ── Physics helpers ──────────────────────────────────────────
@@ -920,7 +955,7 @@ function throwGrenade() {
 }
 
 // ── Explosion ────────────────────────────────────────────────
-function createExplosion(x, y, radius) {
+function createExplosion(x, y, radius, baseDmg = 80) {
   explosions.push({ x, y, radius, maxRadius: radius, life: 30, maxLife: 30 });
   particles.push(...createSparks(x, y, '#ff8800', 18));
   particles.push(...createSparks(x, y, '#ffff00', 10));
@@ -932,7 +967,7 @@ function createExplosion(x, y, radius) {
     const cy = z.y + z.h / 2;
     const dist = Math.hypot(cx - x, cy - y);
     if (dist < radius) {
-      const dmg = Math.floor(80 * (1 - dist / radius));
+      const dmg = Math.floor(baseDmg * (1 - dist / radius));
       damageZombie(z, dmg, x < cx ? 5 : -5);
     }
   }
@@ -1223,6 +1258,7 @@ let warpFlash = 0, warpFlashLevel = 0;
 function warpToLevel(n) {
   n = Math.max(1, Math.min(LEVELS.length, n));
   warpFlash = 60; warpFlashLevel = n; // on-screen confirmation banner
+  initAudioCtx(); // ensure the level-5 gain routing is set up even when warping
   // Make sure a game is actually running (start from menu/dead/win).
   if (gameState === 'menu' || gameState === 'dead' || gameState === 'win') {
     startGame();
@@ -1246,6 +1282,13 @@ document.addEventListener('keydown', e => {
   // Number keys 1-5 warp to that level — debug/test shortcut.
   // Use e.key (the produced character) which is reliable across layouts and numpad.
   if (e.key >= '1' && e.key <= '5') warpToLevel(parseInt(e.key, 10));
+  // B (or 0) warps into the secret bonus level for testing.
+  if (e.code === 'KeyB' || e.key === '0') {
+    initAudioCtx();
+    if (gameState === 'menu' || gameState === 'dead' || gameState === 'win') startGame();
+    warpFlash = 60; warpFlashLevel = 'BONUS';
+    enterHiddenLevel();
+  }
   e.preventDefault();
 });
 document.addEventListener('keyup', e => {
@@ -1420,11 +1463,13 @@ function update() {
   }
 
   // Phone booth telephone: grab to trigger the announcement; advance to boss when it ends.
+  // Grab zone is the booth body (left ~55% of the wide sprite), not the swung-out door.
+  const boothBodyW = phoneBooth ? phoneBooth.w * 0.55 : 0;
   if (phoneState === 'waiting' && phoneBooth &&
-      player.x < phoneBooth.x + phoneBooth.w && player.x + player.w > phoneBooth.x &&
+      player.x < phoneBooth.x + boothBodyW && player.x + player.w > phoneBooth.x &&
       player.y < phoneBooth.y + phoneBooth.h && player.y + player.h > phoneBooth.y) {
     phoneState = 'ringing';
-    phoneTimer = 900; // fallback (~15s) if the audio 'ended' event never fires
+    phoneTimer = 1800; // fallback (~30s) if the audio 'ended' event never fires; 'ended' is the real trigger
     try { sfxPhone.currentTime = 0; } catch (_) {}
     sfxPhone.play().catch(() => {});
     sfxPhone.addEventListener('ended', onPhoneEnded, { once: true });
@@ -1488,11 +1533,12 @@ function update() {
   // Bullets
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
+    const bpx = b.x, bpy = b.y;  // previous position for swept collision
     b.x += b.vx;
     b.y += b.vy;
     b.life--;
     if (b.life <= 0) {
-      if (b.isRocket) createExplosion(b.x, b.y, 200);
+      if (b.isRocket) createExplosion(b.x, b.y, 200, 160);
       bullets.splice(i, 1); continue;
     }
 
@@ -1514,7 +1560,7 @@ function update() {
       for (const z of zombies) {
         if (z.dead) continue;
         if (b.x > z.x && b.x < z.x + z.w && b.y > z.y && b.y < z.y + z.h) {
-          if (b.isRocket) { createExplosion(b.x, b.y, 200); }
+          if (b.isRocket) { createExplosion(b.x, b.y, 200, 160); }
           else { damageZombie(z, b.damage != null ? b.damage : 20 + level * 2, b.vx > 0 ? 2 : -2); }
           hit = true;
           break;
@@ -1523,10 +1569,10 @@ function update() {
       if (hit) { bullets.splice(i, 1); continue; }
     }
 
-    // platform collision
+    // Platform collision — swept check so fast bullets don't tunnel through 16px platforms
     for (const p of basePlatforms) {
-      if (b.x > p.x && b.x < p.x + p.w && b.y > p.y && b.y < p.y + p.h) {
-        if (b.isRocket) createExplosion(b.x, b.y, 200);
+      if (lineIntersectsRect(bpx, bpy, b.x, b.y, p.x, p.y, p.w, p.h)) {
+        if (b.isRocket) createExplosion(b.x, b.y, 200, 160);
         else particles.push(...createSparks(b.x, b.y, '#888', 3));
         bullets.splice(i, 1);
         break;
@@ -1586,21 +1632,29 @@ function update() {
       continue;
     }
 
-    // Ground splash
-    if (s.y + s.r >= GROUND_Y) {
-      for (let p = 0; p < 8; p++) {
-        particles.push({
-          x: s.x, y: GROUND_Y - 2,
-          vx: (Math.random() - 0.5) * 5,
-          vy: -1 - Math.random() * 3,
-          life: 22 + Math.random() * 18,
-          color: '#3aff5c',
-          size: 2 + Math.random() * 2,
-        });
+    // Platform splash — check all platforms (ground + elevated) via circle-AABB
+    let slimeHit = false;
+    for (const p of basePlatforms) {
+      const nx = Math.max(p.x, Math.min(s.x, p.x + p.w));
+      const ny = Math.max(p.y, Math.min(s.y, p.y + p.h));
+      const dx = s.x - nx, dy = s.y - ny;
+      if (dx * dx + dy * dy <= s.r * s.r) {
+        const splashY = p.y;
+        for (let j = 0; j < 8; j++) {
+          particles.push({
+            x: s.x, y: splashY - 2,
+            vx: (Math.random() - 0.5) * 5,
+            vy: -1 - Math.random() * 3,
+            life: 22 + Math.random() * 18,
+            color: '#3aff5c',
+            size: 2 + Math.random() * 2,
+          });
+        }
+        slimeHit = true;
+        break;
       }
-      slimeProjectiles.splice(i, 1);
-      continue;
     }
+    if (slimeHit) { slimeProjectiles.splice(i, 1); continue; }
 
     if (s.life <= 0) slimeProjectiles.splice(i, 1);
   }
@@ -4217,6 +4271,48 @@ function drawAmmoPickups() {
   }
 }
 
+function drawPhoneBooth() {
+  if (!phoneBooth) return;
+  const sx = phoneBooth.x - cameraX;
+  if (sx + phoneBooth.w < -40 || sx > canvas.width + 40) return;
+  if (phoneBoothImg.complete && phoneBoothImg.naturalWidth) {
+    ctx.drawImage(phoneBoothImg, sx, phoneBooth.y, phoneBooth.w, phoneBooth.h);
+  } else {
+    ctx.fillStyle = '#8a0000';
+    ctx.fillRect(sx, phoneBooth.y, phoneBooth.w, phoneBooth.h);
+  }
+  // Telephone handset over the booth interior (left side of the wide sprite) — glowing while grabbable.
+  const cx = sx + phoneBooth.w * 0.3;
+  const cy = phoneBooth.y + phoneBooth.h * 0.45;
+  ctx.save();
+  if (phoneState === 'waiting') {
+    const pulse = 0.6 + Math.sin(frameCount * 0.15) * 0.4;
+    ctx.shadowColor = '#ffee44';
+    ctx.shadowBlur = 18 * pulse;
+    ctx.strokeStyle = `rgba(255,238,80,${0.7 + pulse * 0.3})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy + 4, 7, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+    ctx.fillStyle = '#ffee44';
+    ctx.beginPath(); ctx.arc(cx - 6, cy, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 6, cy, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 11px Courier New';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.fillText('GRAB PHONE', cx, phoneBooth.y - 8);
+    ctx.textAlign = 'left';
+  } else if (phoneState === 'ringing') {
+    ctx.font = 'bold 14px Courier New';
+    ctx.fillStyle = '#ffcc00';
+    ctx.textAlign = 'center';
+    ctx.fillText('☎', cx, phoneBooth.y - 8);
+    ctx.textAlign = 'left';
+  }
+  ctx.restore();
+}
+
 function drawWeaponPickups() {
   for (const wp of weaponPickups) {
     const sx = wp.x - cameraX;
@@ -4716,6 +4812,7 @@ function draw() {
   drawHealthOrbs();
   drawWeaponPickups();
   drawGoldPickups();
+  drawPhoneBooth();
   drawBullets();
   for (const z of zombies) drawZombie(z);
   drawPlayer();
