@@ -1178,10 +1178,32 @@ function toggleGodMode() {
   if (el) el.style.display = godMode ? 'inline' : 'none';
 }
 
+// Debug: warp straight to a level for testing without playing through earlier ones.
+function warpToLevel(n) {
+  n = Math.max(1, Math.min(LEVELS.length, n));
+  // Make sure a game is actually running (start from menu/dead/win).
+  if (gameState === 'menu' || gameState === 'dead' || gameState === 'win') {
+    startGame();
+  }
+  hideOverlay();
+  // Clear boss/portal/hidden flags so the target level begins clean.
+  inHiddenLevel = false;
+  portalSpawned = false;
+  bossSpawnedThisLevel = false;
+  bossRoundActive = false;
+  // nextLevel() does level++ then full setup, so set one below the target.
+  level = n - 1;
+  gameState = 'playing';
+  nextLevel();
+}
+
 document.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyP') togglePause();
   if (e.code === 'KeyI') toggleGodMode();
+  // Number keys 1-5 (top row or numpad) warp to that level — debug/test shortcut.
+  const m = /^(?:Digit|Numpad)([1-5])$/.exec(e.code);
+  if (m) warpToLevel(parseInt(m[1], 10));
   e.preventDefault();
 });
 document.addEventListener('keyup', e => {
